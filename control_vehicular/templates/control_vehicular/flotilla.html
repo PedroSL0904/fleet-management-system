@@ -1,0 +1,287 @@
+{% extends 'control_vehicular/base.html' %}
+{% block title %}Flotilla | FleetPro{% endblock %}
+{% block topbar_title %}Gestión de Flotilla{% endblock %}
+{% block nav_flotilla %}active{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .page-toolbar {
+        display: flex; align-items: center;
+        justify-content: space-between;
+        margin-bottom: 24px; gap: 12px;
+    }
+
+    .filter-tabs {
+        display: flex; gap: 4px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 4px;
+    }
+
+    .filter-tab {
+        padding: 6px 14px;
+        border-radius: 6px;
+        font-size: 12.5px; font-weight: 500;
+        color: var(--text-secondary);
+        cursor: pointer; border: none;
+        background: transparent;
+        font-family: 'DM Sans', sans-serif;
+        transition: all 0.15s;
+    }
+
+    .filter-tab.active, .filter-tab:hover {
+        background: var(--bg-main);
+        color: var(--text-primary);
+    }
+
+    .filter-tab.active { font-weight: 600; }
+
+    .search-box {
+        display: flex; align-items: center; gap: 8px;
+        background: white; border: 1px solid var(--border);
+        border-radius: 8px; padding: 8px 14px; width: 240px;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .search-box:focus-within {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+
+    .search-box svg { width: 15px; height: 15px; fill: var(--text-secondary); flex-shrink: 0; }
+
+    .search-box input {
+        border: none; outline: none; font-size: 13px;
+        font-family: 'DM Sans', sans-serif;
+        color: var(--text-primary); background: transparent; width: 100%;
+    }
+
+    .search-box input::placeholder { color: var(--text-secondary); }
+
+    .fleet-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 16px;
+    }
+
+    .vehicle-card {
+        background: white; border: 1px solid var(--border);
+        border-radius: var(--radius); overflow: hidden;
+        box-shadow: var(--shadow);
+        transition: box-shadow 0.2s, transform 0.2s;
+    }
+
+    .vehicle-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+
+    .vehicle-card .vehicle-img {
+        height: 160px; object-fit: cover; width: 100%; display: block;
+    }
+
+    .vehicle-card .vehicle-img-placeholder {
+        height: 160px; background: #f3f4f6;
+        display: flex; align-items: center; justify-content: center;
+    }
+
+    .vehicle-card .vehicle-img-placeholder svg { width: 48px; height: 48px; fill: #d1d5db; }
+
+    .vehicle-body { padding: 14px 16px; }
+
+    .vehicle-name { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+
+    .vehicle-plates {
+        font-family: 'Space Mono', monospace;
+        font-size: 11.5px; color: var(--text-secondary);
+    }
+
+    .vehicle-meta {
+        display: flex; align-items: center;
+        justify-content: space-between; margin-top: 10px;
+    }
+
+    .vehicle-km { font-size: 12px; color: var(--text-secondary); }
+    .vehicle-km span { font-family: 'Space Mono', monospace; color: var(--text-primary); font-weight: 600; }
+
+    .ruta-panel {
+        background: #eff6ff; border: 1px solid #bfdbfe;
+        border-radius: 8px; padding: 12px; margin-top: 10px;
+    }
+
+    .ruta-panel .operator-label { font-size: 11px; color: #6b7280; margin-bottom: 3px; }
+    .ruta-panel .operator-name { font-size: 13px; font-weight: 600; color: #1d4ed8; }
+
+    .km-input-group { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+
+    .km-input {
+        flex: 1; padding: 6px 10px;
+        border: 1px solid #bfdbfe; border-radius: 6px;
+        font-size: 12px; font-family: 'Space Mono', monospace;
+        background: white; color: var(--text-primary);
+    }
+
+    .km-input:focus { outline: none; border-color: var(--accent); }
+
+    .km-submit {
+        padding: 6px 12px; background: #1d4ed8; color: white;
+        border: none; border-radius: 6px; font-size: 12px; font-weight: 500;
+        cursor: pointer; font-family: 'DM Sans', sans-serif; white-space: nowrap;
+    }
+
+    .km-submit:hover { background: #1e40af; }
+
+    .taller-panel {
+        margin-top: 10px; padding: 10px 12px;
+        background: #fef2f2; border: 1px solid #fecaca;
+        border-radius: 8px; font-size: 12px; color: #b91c1c;
+    }
+
+    .vehicle-footer {
+        padding: 10px 16px; border-top: 1px solid var(--border);
+        background: #fafafa; display: flex; gap: 8px;
+    }
+
+    .btn-card {
+        flex: 1; padding: 7px 10px; border-radius: 7px;
+        font-size: 12px; font-weight: 500;
+        border: 1px solid var(--border); background: white;
+        color: var(--text-primary); cursor: pointer;
+        text-decoration: none;
+        display: flex; align-items: center; justify-content: center; gap: 5px;
+        transition: all 0.15s; font-family: 'DM Sans', sans-serif;
+    }
+
+    .btn-card:hover { background: var(--bg-main); color: var(--text-primary); }
+    .btn-card.primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-card.primary:hover { background: #2563eb; }
+    .btn-card.danger { color: var(--danger); border-color: #fecaca; }
+    .btn-card.danger:hover { background: #fef2f2; }
+    .btn-card svg { width: 13px; height: 13px; }
+
+    .empty-state {
+        grid-column: 1/-1; text-align: center; padding: 60px 20px;
+        color: var(--text-secondary);
+    }
+
+    .empty-state svg { width: 48px; height: 48px; fill: #d1d5db; margin-bottom: 12px; display: block; margin-inline: auto; }
+    .empty-state p { font-size: 14px; margin-bottom: 16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-toolbar">
+    <div style="display:flex;align-items:center;gap:12px;">
+        <div>
+            <div style="font-size:22px;font-weight:600;color:var(--text-primary);letter-spacing:-0.3px;">Flotilla</div>
+            <div style="font-size:13px;color:var(--text-secondary);margin-top:1px;">{{ total_vehiculos }} unidades activas</div>
+        </div>
+        <div class="filter-tabs">
+            <button class="filter-tab active" onclick="filterCards('all', this)">Todas</button>
+            <button class="filter-tab" onclick="filterCards('DISPONIBLE', this)">Disponibles <span style="font-family:'Space Mono',monospace;">{{ disponibles }}</span></button>
+            <button class="filter-tab" onclick="filterCards('EN_RUTA', this)">En Ruta <span style="font-family:'Space Mono',monospace;">{{ en_ruta }}</span></button>
+            <button class="filter-tab" onclick="filterCards('EN_TALLER', this)">En Taller <span style="font-family:'Space Mono',monospace;">{{ en_taller }}</span></button>
+        </div>
+    </div>
+    <div class="search-box">
+        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input type="text" id="searchFleet" placeholder="Buscar placas o modelo...">
+    </div>
+</div>
+
+<div class="fleet-grid" id="fleetGrid">
+    {% for vehiculo in vehiculos %}
+    <div class="vehicle-card tarjeta-vehiculo" data-estado="{{ vehiculo.estado }}">
+
+        {% if vehiculo.foto %}
+        <img src="{{ vehiculo.foto.url }}" class="vehicle-img" alt="{{ vehiculo.marca }} {{ vehiculo.modelo }}">
+        {% else %}
+        <div class="vehicle-img-placeholder">
+            <svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99z"/></svg>
+        </div>
+        {% endif %}
+
+        <div class="vehicle-body">
+            <div class="vehicle-name">{{ vehiculo.get_marca_display }} {{ vehiculo.modelo }}</div>
+            <div class="vehicle-plates">{{ vehiculo.placas }} · {{ vehiculo.anio }}</div>
+            <div class="vehicle-meta">
+                <div class="vehicle-km"><span>{{ vehiculo.kilometraje_actual }}</span> km</div>
+                {% if vehiculo.estado == 'DISPONIBLE' %}
+                <span class="badge-status disponible"><span class="dot"></span>Disponible</span>
+                {% elif vehiculo.estado == 'EN_RUTA' %}
+                <span class="badge-status en-ruta"><span class="dot"></span>En Ruta</span>
+                {% elif vehiculo.estado == 'EN_TALLER' %}
+                <span class="badge-status en-taller"><span class="dot"></span>En Taller</span>
+                {% endif %}
+            </div>
+
+            {% if vehiculo.estado == 'EN_RUTA' %}
+            <div class="ruta-panel">
+                <div class="operator-label">Operador asignado</div>
+                <div class="operator-name">{{ vehiculo.get_chofer_actual }}</div>
+                <form action="/liberar-vehiculo/{{ vehiculo.id }}/" method="POST">
+                    {% csrf_token %}
+                    <div class="km-input-group">
+                        <input type="number" name="kilometraje_regreso" class="km-input"
+                            required min="{{ vehiculo.kilometraje_actual }}" step="0.01"
+                            placeholder="Km llegada">
+                        <button type="submit" class="km-submit"
+                            onclick="return confirm('¿Confirmar recepción del vehículo?')">Recibir</button>
+                    </div>
+                </form>
+            </div>
+            {% elif vehiculo.estado == 'EN_TALLER' %}
+            <div class="taller-panel">Unidad en mantenimiento</div>
+            {% endif %}
+        </div>
+
+        <div class="vehicle-footer">
+            {% if vehiculo.estado == 'DISPONIBLE' %}
+            <a href="/asignar-vehiculo/?vehiculo={{ vehiculo.id }}" class="btn-card primary">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
+                Asignar
+            </a>
+            {% endif %}
+            <a href="/editar-vehiculo/{{ vehiculo.id }}/" class="btn-card">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                Editar
+            </a>
+            <form action="/eliminar-vehiculo/{{ vehiculo.id }}/" method="POST"
+                onsubmit="return confirm('¿Dar de baja este vehículo?')">
+                {% csrf_token %}
+                <button type="submit" class="btn-card danger">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    Baja
+                </button>
+            </form>
+        </div>
+
+    </div>
+    {% empty %}
+    <div class="empty-state">
+        <svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99z"/></svg>
+        <p>No hay vehículos registrados en la flotilla.</p>
+        <a href="{% url 'agregar_vehiculo' %}" class="topbar-btn primary" style="display:inline-flex;">Registrar primer vehículo</a>
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.getElementById('searchFleet').addEventListener('input', function () {
+        const q = this.value.toLowerCase();
+        document.querySelectorAll('.tarjeta-vehiculo').forEach(card => {
+            card.style.display = card.innerText.toLowerCase().includes(q) ? '' : 'none';
+        });
+    });
+
+    function filterCards(estado, btn) {
+        document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.tarjeta-vehiculo').forEach(card => {
+            card.style.display = (estado === 'all' || card.dataset.estado === estado) ? '' : 'none';
+        });
+    }
+</script>
+{% endblock %}

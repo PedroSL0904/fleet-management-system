@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        /* CSS Estricto para xhtml2pdf */
+        @page {
+            size: letter portrait;
+            margin: 1.5cm;
+            @frame footer_frame {
+                -pdf-frame-content: footer_content;
+                left: 50pt; width: 512pt; top: 730pt; height: 20pt;
+            }
+        }
+        body { font-family: Helvetica, sans-serif; font-size: 11px; color: #333; }
+        h1 { color: #1a5276; font-size: 18px; margin-bottom: 5px; text-transform: uppercase; }
+        h2 { color: #2980b9; font-size: 14px; border-bottom: 1px solid #bdc3c7; padding-bottom: 3px; margin-top: 20px; }
+        
+        .header-table { width: 100%; border-bottom: 2px solid #1a5276; margin-bottom: 15px; padding-bottom: 10px; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        
+        /* Tablas de datos */
+        .data-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .data-table th { background-color: #eaeded; color: #2c3e50; padding: 6px; text-align: left; font-weight: bold; border-bottom: 1px solid #95a5a6; }
+        .data-table td { padding: 6px; border-bottom: 1px solid #ecf0f1; }
+        
+        /* KPI Boxes simuladas con tablas */
+        .kpi-table { width: 100%; text-align: center; margin-top: 15px; }
+        .kpi-box { border: 1px solid #bdc3c7; background-color: #fdfefe; padding: 10px; border-radius: 4px; }
+        .kpi-number { font-size: 16px; font-weight: bold; color: #1a5276; }
+        
+        /* Utilidades */
+        .badge-danger { color: #e74c3c; font-weight: bold; }
+        .badge-warning { color: #d35400; font-weight: bold; }
+        .badge-success { color: #27ae60; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <table class="header-table">
+        <tr>
+            <td width="50%">
+                <h1>Reporte Ejecutivo FleetPro</h1>
+                <p><strong>Fecha de Emisión:</strong> {{ fecha_generacion|date:"d \d\e F \d\e Y, H:i" }}</p>
+                <p><strong>Generado por:</strong> {{ generado_por }}</p>
+            </td>
+            <td width="50%" class="text-right">
+                <h1 style="color: #7f8c8d;">FLOTILLA ACTIVA</h1>
+            </td>
+        </tr>
+    </table>
+
+    <h2>1. Resumen Operativo y Financiero</h2>
+    <table class="kpi-table">
+        <tr>
+            <td class="kpi-box">
+                <span class="kpi-number">{{ kpis.total }}</span><br>Unidades Totales
+            </td>
+            <td class="kpi-box">
+                <span class="kpi-number" style="color: #27ae60;">{{ kpis.disponibles }}</span><br>Disponibles
+            </td>
+            <td class="kpi-box">
+                <span class="kpi-number" style="color: #d35400;">{{ kpis.en_ruta }}</span><br>En Ruta
+            </td>
+            <td class="kpi-box">
+                <span class="kpi-number" style="color: #e74c3c;">{{ kpis.en_taller }}</span><br>En Taller
+            </td>
+            <td class="kpi-box">
+                <span class="kpi-number">${{ kpis.gasto_mantenimiento }}</span><br>Inversión Histórica Taller
+            </td>
+        </tr>
+    </table>
+
+    {% if alertas_polizas or alertas_mantenimiento %}
+    <h2>2. Alertas Críticas (Mapa de Riesgos)</h2>
+    <table class="data-table">
+        <tr>
+            <th width="30%">Vehículo</th>
+            <th width="40%">Tipo de Alerta</th>
+            <th width="30%">Fecha Límite / Cita</th>
+        </tr>
+        {% for poliza in alertas_polizas %}
+        <tr>
+            <td><strong>{{ poliza.vehiculo.placas }}</strong> ({{ poliza.vehiculo.marca }})</td>
+            <td class="badge-danger">Póliza de Seguro por Vencer ({{ poliza.aseguradora }})</td>
+            <td class="badge-danger">{{ poliza.fecha_vencimiento|date:"d M Y" }}</td>
+        </tr>
+        {% endfor %}
+        {% for mant in alertas_mantenimiento %}
+        <tr>
+            <td><strong>{{ mant.vehiculo.placas }}</strong> ({{ mant.vehiculo.marca }})</td>
+            <td class="badge-warning">Mantenimiento Pendiente ({{ mant.get_tipo_display }})</td>
+            <td class="badge-warning">{{ mant.fecha_servicio|date:"d M Y" }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+
+    <h2>3. Operadores en Ruta</h2>
+    {% if asignaciones %}
+    <table class="data-table">
+        <tr>
+            <th width="20%">Vehículo</th>
+            <th width="30%">Operador Asignado</th>
+            <th width="25%">Contacto</th>
+            <th width="25%">Fecha de Salida</th>
+        </tr>
+        {% for viaje in asignaciones %}
+        <tr>
+            <td>{{ viaje.vehiculo.placas }}</td>
+            <td>{{ viaje.chofer.nombre }} {{ viaje.chofer.apellidos }}</td>
+            <td>{{ viaje.chofer.telefono }}</td>
+            <td>{{ viaje.fecha_salida|date:"d M Y, H:i" }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p>No hay vehículos en ruta en este momento.</p>
+    {% endif %}
+
+    <h2>4. Directorio General de Unidades</h2>
+    <table class="data-table">
+        <tr>
+            <th width="20%">Placas</th>
+            <th width="25%">Vehículo</th>
+            <th width="15%">Modelo</th>
+            <th width="20%">Estado Actual</th>
+            <th width="20%">Kilometraje</th>
+        </tr>
+        {% for v in vehiculos %}
+        <tr>
+            <td><strong>{{ v.placas }}</strong></td>
+            <td>{{ v.get_marca_display }} {{ v.modelo }}</td>
+            <td>{{ v.anio }}</td>
+            <td>
+                {% if v.estado == 'DISPONIBLE' %}<span class="badge-success">Disponible</span>
+                {% elif v.estado == 'EN_RUTA' %}<span class="badge-warning">En Ruta</span>
+                {% elif v.estado == 'EN_TALLER' %}<span class="badge-danger">En Taller</span>
+                {% else %}{{ v.get_estado_display }}
+                {% endif %}
+            </td>
+            <td>{{ v.kilometraje_actual }} km</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <div id="footer_content" class="text-right" style="color: #95a5a6; font-size: 9px; border-top: 1px solid #ecf0f1; padding-top: 5px;">
+        Generado automáticamente por FleetPro - Documento Confidencial | Página <pdf:pagenumber> de <pdf:pagecount>
+    </div>
+
+</body>
+</html>

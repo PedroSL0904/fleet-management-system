@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso | FleetPro</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --accent:#3b82f6; --danger:#ef4444; --border:#e5e7eb; --text-primary:#111827; --text-secondary:#6b7280; }
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family:'DM Sans',sans-serif; background:#f4f5f7; min-height:100vh; display:grid; grid-template-columns:1fr 480px; }
+        .left-panel { background:#0f1117; display:flex; flex-direction:column; justify-content:space-between; padding:48px; position:relative; overflow:hidden; }
+        .left-panel::before { content:''; position:absolute; top:-120px; left:-120px; width:500px; height:500px; background:radial-gradient(circle,rgba(59,130,246,0.12) 0%,transparent 70%); pointer-events:none; }
+        .left-panel::after { content:''; position:absolute; bottom:-80px; right:-80px; width:400px; height:400px; background:radial-gradient(circle,rgba(99,102,241,0.08) 0%,transparent 70%); pointer-events:none; }
+        .left-brand { display:flex; align-items:center; gap:12px; }
+        .left-brand .brand-icon { width:36px; height:36px; background:var(--accent); border-radius:9px; display:flex; align-items:center; justify-content:center; }
+        .left-brand .brand-icon svg { width:20px; height:20px; fill:white; }
+        .left-brand .brand-name { font-family:'Space Mono',monospace; font-size:16px; font-weight:700; color:white; letter-spacing:-0.3px; }
+        .left-content { position:relative; z-index:1; }
+        .left-content h1 { font-size:36px; font-weight:600; color:white; letter-spacing:-1px; line-height:1.2; margin-bottom:16px; }
+        .left-content h1 span { color:var(--accent); }
+        .left-content p { font-size:15px; color:#9ca3af; line-height:1.6; max-width:340px; }
+        .left-features { display:flex; flex-direction:column; gap:12px; position:relative; z-index:1; }
+        .feature-item { display:flex; align-items:center; gap:10px; font-size:13px; color:#6b7280; }
+        .feature-dot { width:6px; height:6px; background:var(--accent); border-radius:50%; flex-shrink:0; }
+        .right-panel { background:white; display:flex; align-items:center; justify-content:center; padding:48px 52px; border-left:1px solid var(--border); }
+        .login-box { width:100%; max-width:340px; }
+        .login-header { margin-bottom:32px; }
+        .login-header h2 { font-size:22px; font-weight:600; color:var(--text-primary); letter-spacing:-0.3px; margin-bottom:4px; }
+        .login-header p { font-size:13.5px; color:var(--text-secondary); }
+        .form-field { margin-bottom:16px; }
+        .form-field label { display:block; font-size:12.5px; font-weight:600; color:var(--text-primary); margin-bottom:6px; }
+        .form-field input { width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:'DM Sans',sans-serif; color:var(--text-primary); background:white; transition:border-color 0.15s,box-shadow 0.15s; -webkit-appearance:none; }
+        .form-field input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
+        .password-wrapper { position:relative; }
+        .password-wrapper input { padding-right:42px; }
+        .password-toggle { position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; padding:4px; color:var(--text-secondary); display:flex; align-items:center; transition:color 0.15s; }
+        .password-toggle:hover { color:var(--text-primary); }
+        .password-toggle svg { width:16px; height:16px; }
+        .field-footer { display:flex; justify-content:flex-end; margin-top:6px; }
+        .forgot-link { font-size:12px; color:var(--accent); text-decoration:none; font-weight:500; transition:color 0.15s; }
+        .forgot-link:hover { color:#2563eb; text-decoration:underline; }
+        .error-alert { background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:10px 14px; margin-bottom:20px; font-size:13px; color:var(--danger); display:flex; align-items:center; gap:8px; }
+        .error-alert svg { width:15px; height:15px; fill:var(--danger); flex-shrink:0; }
+        .btn-login { width:100%; padding:11px; background:var(--accent); color:white; border:none; border-radius:8px; font-size:14px; font-weight:600; font-family:'DM Sans',sans-serif; cursor:pointer; margin-top:8px; transition:background 0.15s,transform 0.1s; }
+        .btn-login:hover { background:#2563eb; }
+        .btn-login:active { transform:scale(0.99); }
+        .login-footer { margin-top:32px; padding-top:20px; border-top:1px solid var(--border); text-align:center; }
+        .login-footer p { font-size:12px; color:var(--text-secondary); }
+        .login-footer strong { font-family:'Space Mono',monospace; font-size:11px; color:var(--text-primary); }
+        input[type="password"]::-ms-reveal, input[type="password"]::-ms-clear { display:none; }
+        @media (max-width:768px) { body { grid-template-columns:1fr; } .left-panel { display:none; } .right-panel { padding:40px 28px; } }
+    </style>
+</head>
+<body>
+    <div class="left-panel">
+        <div class="left-brand">
+            <div class="brand-icon"><svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99z"/></svg></div>
+            <span class="brand-name">FleetPro</span>
+        </div>
+        <div class="left-content">
+            <h1>Control total de tu <span>flotilla vehicular</span></h1>
+            <p>Gestiona vehículos, operadores, mantenimientos y pólizas desde un solo panel operativo.</p>
+        </div>
+        <div class="left-features">
+            <div class="feature-item"><span class="feature-dot"></span>Monitoreo en tiempo real del estado de cada unidad</div>
+            <div class="feature-item"><span class="feature-dot"></span>Alertas automáticas de vencimientos y mantenimientos</div>
+            <div class="feature-item"><span class="feature-dot"></span>Reportes ejecutivos exportables en PDF</div>
+            <div class="feature-item"><span class="feature-dot"></span>Bitácora completa de asignaciones y operadores</div>
+        </div>
+    </div>
+    <div class="right-panel">
+        <div class="login-box">
+            <div class="login-header">
+                <h2>Iniciar sesión</h2>
+                <p>Ingresa tus credenciales para acceder al sistema</p>
+            </div>
+            {% if form.errors %}
+            <div class="error-alert">
+                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                Usuario o contraseña incorrectos. Intenta de nuevo.
+            </div>
+            {% endif %}
+            <form method="POST">
+                {% csrf_token %}
+                <div class="form-field">
+                    <label for="id_username">Usuario</label>
+                    <input type="text" name="username" id="id_username" required autocomplete="username" placeholder="Ej. admin">
+                </div>
+                <div class="form-field">
+                    <label for="id_password">Contraseña</label>
+                    <div class="password-wrapper">
+                        <input type="password" name="password" id="id_password" required autocomplete="current-password" placeholder="••••••••">
+                        <button type="button" class="password-toggle" id="togglePassword" aria-label="Mostrar contraseña">
+                            <svg viewBox="0 0 24 24" fill="currentColor"><path id="eyePath" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                        </button>
+                    </div>
+                    <div class="field-footer">
+                        <a href="{% url 'password_reset' %}" class="forgot-link">¿Olvidaste tu contraseña?</a>
+                    </div>
+                </div>
+                <button type="submit" class="btn-login">Ingresar al Sistema</button>
+            </form>
+            <div class="login-footer">
+                <p>Sistema de gestión de flotillas</p>
+                <strong>FleetPro &copy; {% now "Y" %}</strong>
+            </div>
+        </div>
+    </div>
+    <script>
+        const toggle = document.getElementById('togglePassword');
+        const input = document.getElementById('id_password');
+        const eyePath = document.getElementById('eyePath');
+        const EYE_OPEN = 'M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z';
+        const EYE_CLOSED = 'M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z';
+        toggle.addEventListener('click', () => {
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            eyePath.setAttribute('d', show ? EYE_CLOSED : EYE_OPEN);
+        });
+    </script>
+</body>
+</html>

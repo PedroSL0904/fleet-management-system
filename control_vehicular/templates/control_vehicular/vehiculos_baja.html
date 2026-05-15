@@ -1,0 +1,210 @@
+{% extends 'control_vehicular/base.html' %}
+
+{% block title %}Vehículos Inactivos | FleetPro{% endblock %}
+{% block topbar_title %}Vehículos Inactivos{% endblock %}
+{% block nav_bajas_vehiculos %}active{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .page-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 24px;
+        gap: 12px;
+    }
+
+    .search-box {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 14px;
+        width: 260px;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .search-box:focus-within {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+
+    .search-box svg { width: 15px; height: 15px; fill: var(--text-secondary); flex-shrink: 0; }
+
+    .search-box input {
+        border: none; outline: none;
+        font-size: 13px; font-family: 'DM Sans', sans-serif;
+        color: var(--text-primary); background: transparent; width: 100%;
+    }
+
+    .search-box input::placeholder { color: var(--text-secondary); }
+
+    .archive-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 16px;
+    }
+
+    .archive-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        opacity: 0.85;
+        transition: opacity 0.2s, box-shadow 0.2s;
+    }
+
+    .archive-card:hover { opacity: 1; box-shadow: var(--shadow-md); }
+
+    .archive-card .card-img {
+        height: 160px;
+        object-fit: cover;
+        width: 100%;
+        display: block;
+        filter: grayscale(60%);
+        transition: filter 0.2s;
+    }
+
+    .archive-card:hover .card-img { filter: grayscale(20%); }
+
+    .archive-card .card-img-placeholder {
+        height: 160px;
+        background: #f3f4f6;
+        display: flex; align-items: center; justify-content: center;
+    }
+
+    .archive-card .card-img-placeholder svg {
+        width: 48px; height: 48px; fill: #d1d5db;
+    }
+
+    .archive-card-body { padding: 14px 16px; }
+
+    .archive-card-name {
+        font-size: 14px; font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 2px;
+    }
+
+    .archive-card-plates {
+        font-family: 'Space Mono', monospace;
+        font-size: 11.5px; color: var(--text-secondary);
+    }
+
+    .archive-card-meta {
+        margin-top: 10px;
+        display: flex; flex-direction: column; gap: 4px;
+    }
+
+    .archive-meta-row {
+        font-size: 12px; color: var(--text-secondary);
+        display: flex; gap: 6px;
+    }
+
+    .archive-meta-row strong { color: var(--text-primary); font-weight: 500; }
+
+    .archive-card-footer {
+        padding: 10px 16px;
+        border-top: 1px solid var(--border);
+        background: #fafafa;
+        display: flex; align-items: center; justify-content: space-between;
+    }
+
+    .btn-reactivate {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 7px 14px;
+        border-radius: 7px;
+        font-size: 12.5px; font-weight: 500;
+        border: 1px solid #bbf7d0;
+        background: white;
+        color: #15803d;
+        cursor: pointer;
+        font-family: 'DM Sans', sans-serif;
+        transition: all 0.15s;
+    }
+
+    .btn-reactivate:hover { background: #f0fdf4; }
+    .btn-reactivate svg { width: 13px; height: 13px; fill: currentColor; }
+
+    .empty-state {
+        grid-column: 1/-1;
+        text-align: center;
+        padding: 80px 20px;
+        color: var(--text-secondary);
+    }
+
+    .empty-state svg { width: 48px; height: 48px; fill: #d1d5db; margin-bottom: 12px; display: block; margin-inline: auto; }
+    .empty-state p { font-size: 14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-toolbar">
+    <div>
+        <div style="font-size:22px;font-weight:600;color:var(--text-primary);letter-spacing:-0.3px;">Vehículos Inactivos</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-top:1px;">Archivo de unidades dadas de baja</div>
+    </div>
+    <div class="search-box">
+        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input type="text" id="searchArchive" placeholder="Buscar placas o modelo...">
+    </div>
+</div>
+
+<div class="archive-grid" id="archiveGrid">
+    {% for vehiculo in vehiculos %}
+    <div class="archive-card tarjeta-vehiculo">
+
+        {% if vehiculo.foto %}
+        <img src="{{ vehiculo.foto.url }}" class="card-img" alt="{{ vehiculo.marca }} {{ vehiculo.modelo }}">
+        {% else %}
+        <div class="card-img-placeholder">
+            <svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99z"/></svg>
+        </div>
+        {% endif %}
+
+        <div class="archive-card-body">
+            <div class="archive-card-name">{{ vehiculo.get_marca_display }} {{ vehiculo.modelo }} ({{ vehiculo.anio }})</div>
+            <div class="archive-card-plates">{{ vehiculo.placas }}</div>
+
+            <div class="archive-card-meta">
+                <div class="archive-meta-row">VIN: <strong>{{ vehiculo.vin }}</strong></div>
+                <div class="archive-meta-row">Km final: <strong>{{ vehiculo.kilometraje_actual }} km</strong></div>
+            </div>
+        </div>
+
+        <div class="archive-card-footer">
+            <span class="badge-status baja"><span class="dot"></span>Dado de Baja</span>
+            <form action="/reactivar-vehiculo/{{ vehiculo.id }}/" method="POST"
+                onsubmit="return confirm('¿Reactivar {{ vehiculo.placas }}? Volverá a la flotilla activa.')">
+                {% csrf_token %}
+                <button type="submit" class="btn-reactivate">
+                    <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                    Reactivar
+                </button>
+            </form>
+        </div>
+
+    </div>
+    {% empty %}
+    <div class="empty-state">
+        <svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99z"/></svg>
+        <p>No hay vehículos dados de baja en el archivo.</p>
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.getElementById('searchArchive').addEventListener('input', function () {
+        const q = this.value.toLowerCase();
+        document.querySelectorAll('.tarjeta-vehiculo').forEach(card => {
+            card.style.display = card.innerText.toLowerCase().includes(q) ? '' : 'none';
+        });
+    });
+</script>
+{% endblock %}

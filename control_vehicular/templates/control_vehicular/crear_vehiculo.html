@@ -1,0 +1,377 @@
+{% extends 'control_vehicular/base.html' %}
+
+{% block title %}
+{% if titulo %}{{ titulo }}{% else %}Nuevo Registro{% endif %} | FleetPro
+{% endblock %}
+
+{% block topbar_title %}
+{% if titulo %}{{ titulo }}{% else %}Nuevo Registro{% endif %}
+{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .form-wrapper {
+        max-width: 760px;
+        margin: 0 auto;
+    }
+
+    .form-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        text-decoration: none;
+        margin-bottom: 20px;
+        transition: color 0.15s;
+    }
+
+    .form-back:hover { color: var(--text-primary); }
+    .form-back svg { width: 14px; height: 14px; }
+
+    .form-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+
+    .form-card-header {
+        padding: 20px 28px;
+        border-bottom: 1px solid var(--border);
+        background: #fafafa;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .form-card-header .header-icon {
+        width: 36px; height: 36px;
+        background: var(--accent-light);
+        border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+    }
+
+    .form-card-header .header-icon svg {
+        width: 18px; height: 18px;
+        fill: var(--accent);
+    }
+
+    .form-card-header h1 {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+        letter-spacing: -0.2px;
+    }
+
+    .form-card-header p {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-top: 1px;
+    }
+
+    .form-card-body {
+        padding: 28px;
+    }
+
+    /* Photo preview for driver edit */
+    .photo-preview {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px;
+        background: var(--bg-main);
+        border-radius: 10px;
+        margin-bottom: 24px;
+        border: 1px solid var(--border);
+    }
+
+    .photo-preview img {
+        width: 64px; height: 64px;
+        border-radius: 50%;
+        object-fit: cover;
+        object-position: top center;
+        border: 2px solid white;
+        box-shadow: var(--shadow);
+    }
+
+    .photo-preview .photo-info {
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .photo-preview .photo-info strong {
+        display: block;
+        color: var(--text-primary);
+        font-weight: 600;
+        margin-bottom: 2px;
+    }
+
+    /* Form grid */
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+    }
+
+    .form-grid .col-full {
+        grid-column: 1 / -1;
+    }
+
+    .form-field {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .form-field label {
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--text-primary);
+        letter-spacing: 0.1px;
+    }
+
+    /* Override Django widget styles */
+    .form-field input,
+    .form-field select,
+    .form-field textarea {
+        width: 100%;
+        padding: 9px 12px;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        font-size: 13.5px;
+        font-family: 'DM Sans', sans-serif;
+        color: var(--text-primary);
+        background: white;
+        transition: border-color 0.15s, box-shadow 0.15s;
+        -webkit-appearance: none;
+    }
+
+    .form-field input:focus,
+    .form-field select:focus,
+    .form-field textarea:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .form-field textarea { resize: vertical; min-height: 90px; }
+
+    .form-field .help-text {
+        font-size: 11.5px;
+        color: var(--text-secondary);
+    }
+
+    .form-field .error-text {
+        font-size: 12px;
+        color: var(--danger);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    /* File input */
+    .form-field input[type="file"] {
+        padding: 7px 12px;
+        background: var(--bg-main);
+        cursor: pointer;
+        font-size: 13px;
+    }
+
+    /* Submit area */
+    .form-submit {
+        margin-top: 28px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .btn-submit {
+        padding: 10px 24px;
+        background: var(--accent);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        display: flex; align-items: center; gap: 8px;
+        transition: background 0.15s;
+    }
+
+    .btn-submit:hover { background: #2563eb; }
+    .btn-submit svg { width: 16px; height: 16px; fill: white; }
+
+    .btn-cancel {
+        padding: 10px 20px;
+        background: white;
+        color: var(--text-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.15s;
+    }
+
+    .btn-cancel:hover { background: var(--bg-main); color: var(--text-primary); }
+
+    /* Non-field errors */
+    .non-field-errors {
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 20px;
+        font-size: 13px;
+        color: var(--danger);
+    }
+
+    @media (max-width: 600px) {
+        .form-grid { grid-template-columns: 1fr; }
+        .form-grid .col-full { grid-column: 1; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-wrapper">
+
+    <!-- Back link -->
+    {% if url_regreso %}
+    <a href="{{ url_regreso }}" class="form-back">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        {{ texto_regreso|default:"Volver" }}
+    </a>
+    {% else %}
+    <a href="/" class="form-back">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        Volver al Dashboard
+    </a>
+    {% endif %}
+
+    <div class="form-card">
+
+        <!-- Header -->
+        <div class="form-card-header">
+            <div class="header-icon">
+                <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+            </div>
+            <div>
+                <h1>{% if titulo %}{{ titulo }}{% else %}Nuevo Registro{% endif %}</h1>
+                <p>Complete todos los campos requeridos</p>
+            </div>
+        </div>
+
+        <!-- Body -->
+        <div class="form-card-body">
+
+            <!-- Photo preview (driver edit) -->
+            {% if titulo == '⚙️ Editar Datos del Chofer' and form.instance.foto %}
+            <div class="photo-preview">
+                <img src="{{ form.instance.foto.url }}" alt="Foto actual">
+                <div class="photo-info">
+                    <strong>Foto actual del operador</strong>
+                    Sube una nueva imagen solo si deseas reemplazarla
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Non-field errors -->
+            {% if form.non_field_errors %}
+            <div class="non-field-errors">
+                {% for error in form.non_field_errors %}
+                {{ error }}
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <form method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                <div class="form-grid">
+                    {% for field in form %}
+                    <div class="form-field {% if field.field.widget.attrs.rows %}col-full{% endif %}">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.help_text %}
+                        <span class="help-text">{{ field.help_text }}</span>
+                        {% endif %}
+                        {% if field.errors %}
+                        <span class="error-text">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                            {{ field.errors|join:", " }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="form-submit">
+                    {% if url_regreso %}
+                    <a href="{{ url_regreso }}" class="btn-cancel">Cancelar</a>
+                    {% endif %}
+                    <button type="submit" class="btn-submit">
+                        <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+                        Guardar Registro
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // Dynamic brand/model dropdown
+        const catalogoRaw = '{{ form.get_catalogo_json|safe|default:"null" }}';
+        if (catalogoRaw && catalogoRaw !== 'null') {
+            try {
+                const catalogo = JSON.parse(catalogoRaw);
+                const marcaSelect = document.getElementById('id_marca');
+                const modeloSelect = document.getElementById('id_modelo');
+
+                if (marcaSelect && modeloSelect) {
+                    const currentModelo = modeloSelect.dataset.current || '';
+
+                    function populateModelos(marca) {
+                        modeloSelect.innerHTML = '<option value="">Selecciona el modelo...</option>';
+                        if (marca && catalogo[marca]) {
+                            catalogo[marca].forEach(function (modelo) {
+                                const opt = document.createElement('option');
+                                opt.value = modelo[0];
+                                opt.textContent = modelo[1];
+                                if (modelo[0] === currentModelo) opt.selected = true;
+                                modeloSelect.appendChild(opt);
+                            });
+                        }
+                    }
+
+                    // Populate on load if editing
+                    if (marcaSelect.value) populateModelos(marcaSelect.value);
+
+                    marcaSelect.addEventListener('change', function () {
+                        populateModelos(this.value);
+                    });
+                }
+            } catch (e) {
+                console.warn('Catalog parse error:', e);
+            }
+        }
+
+        // Apply consistent styling to all Django-rendered form fields
+        document.querySelectorAll('.form-field input, .form-field select, .form-field textarea').forEach(el => {
+            el.classList.remove('form-control', 'form-select', 'border-primary', 'shadow-sm');
+        });
+    });
+</script>
+{% endblock %}
