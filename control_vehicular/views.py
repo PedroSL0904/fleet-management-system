@@ -9,7 +9,7 @@ from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.template.loader import get_template
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
-from django.db.models import Sum, Count, Avg
+from django.db.models import Sum, Avg
 
 from xhtml2pdf import pisa # type: ignore
 
@@ -20,120 +20,86 @@ logger = logging.getLogger(__name__)
 
 
 # ==========================================
-# DASHBOARD & REPORTING VIEWS
+# DASHBOARD & REPORTING
 # ==========================================
 
 @login_required(login_url='/login/')
 def dashboard(request: HttpRequest) -> HttpResponse:
-    """Executive dashboard — rich KPIs for management."""
     hoy = timezone.now().date()
     limite_30 = hoy + timedelta(days=30)
     limite_7  = hoy + timedelta(days=7)
 
     vehiculos_activos = Vehiculo.objects.exclude(estado='BAJA')
-    total_v   = vehiculos_activos.count()
+    total_v     = vehiculos_activos.count()
     disponibles = vehiculos_activos.filter(estado='DISPONIBLE').count()
     en_ruta     = vehiculos_activos.filter(estado='EN_RUTA').count()
     en_taller   = vehiculos_activos.filter(estado='EN_TALLER').count()
 
-    # Tasa de disponibilidad
     tasa_disponibilidad = round((disponibles / total_v * 100), 1) if total_v > 0 else 0
 
-    # Financiero
-    gasto_total = Mantenimiento.objects.filter(
-        estado='FINALIZADO').aggregate(total=Sum('costo'))['total'] or Decimal('0.00')
+    gasto_total    = Mantenimiento.objects.filter(estado='FINALIZADO').aggregate(total=Sum('costo'))['total'] or Decimal('0.00')
+    costo_promedio = Mantenimiento.objects.filter(estado='FINALIZADO').aggregate(avg=Avg('costo'))['avg']   or Decimal('0.00')
+    km_promedio    = vehiculos_activos.aggregate(avg=Avg('kilometraje_actual'))['avg'] or Decimal('0.00')
 
-    costo_promedio = Mantenimiento.objects.filter(
-        estado='FINALIZADO').aggregate(avg=Avg('costo'))['avg'] or Decimal('0.00')
-
-    # Mantenimientos por tipo (para gráfica de barras)
+    # Maintenance counts for bar chart
     mant_preventivo = Mantenimiento.objects.filter(tipo='PREVENTIVO').count()
     mant_correctivo = Mantenimiento.objects.filter(tipo='CORRECTIVO').count()
     mant_estetico   = Mantenimiento.objects.filter(tipo='ESTETICO').count()
 
-    # Operaciones
-    total_viajes       = Asignacion.objects.count()
-    viajes_este_mes    = Asignacion.objects.filter(
-        fecha_salida__month=hoy.month, fecha_salida__year=hoy.year).count()
+    total_viajes    = Asignacion.objects.count()
+    viajes_este_mes = Asignacion.objects.filter(fecha_salida__month=hoy.month, fecha_salida__year=hoy.year).count()
 
-    # Alertas críticas (próximos 7 días)
-    polizas_criticas = PolizaSeguro.objects.select_related('vehiculo').filter(
-        fecha_vencimiento__lte=limite_7,
-        fecha_vencimiento__gte=hoy
-    ).exclude(vehiculo__estado='BAJA')
-
-    # Alertas próximas (30 días)
-    polizas_proximas = PolizaSeguro.objects.select_related('vehiculo').filter(
-        fecha_vencimiento__lte=limite_30,
-        fecha_vencimiento__gte=hoy
-    ).exclude(vehiculo__estado='BAJA')
-
-    # Licencias por vencer (30 días)
-    licencias_proximas = Chofer.objects.filter(
-        estado='ACTIVO',
-        vencimiento_licencia__lte=limite_30,
-        vencimiento_licencia__gte=hoy
-    )
-
-    # Mantenimientos pendientes/en proceso
+    # Active maintenance (pending or in-progress)
     mant_activos = Mantenimiento.objects.select_related('vehiculo').filter(
         estado__in=['PENDIENTE', 'EN_PROCESO']
     ).exclude(vehiculo__estado='BAJA')
 
-    # Asignaciones activas
-    asignaciones_activas = Asignacion.objects.select_related(
-        'vehiculo', 'chofer'
-    ).filter(estado='ACTIVA')
+    # Insurance policies expiring within 7 days (critical) and 30 days (warning)
+    # Only show policies that haven't expired yet (fecha_vencimiento >= hoy)
+    polizas_criticas = PolizaSeguro.objects.select_related('vehiculo').filter(
+        fecha_vencimiento__gte=hoy,
+        fecha_vencimiento__lte=limite_7,
+    ).exclude(vehiculo__estado='BAJA')
 
-    # Mantenimientos recientes (últimos 5)
-    mantenimientos_recientes = Mantenimiento.objects.exclude(
-        vehiculo__estado='BAJA'
-    ).select_related('vehiculo').order_by('-fecha_servicio')[:5]
+    polizas_proximas = PolizaSeguro.objects.select_related('vehiculo').filter(
+        fecha_vencimiento__gte=hoy,
+        fecha_vencimiento__lte=limite_30,
+    ).exclude(vehiculo__estado='BAJA')
 
-    # Vehículo con más km
-    vehiculo_mas_km = vehiculos_activos.order_by('-kilometraje_actual').first()
+    # Driver licenses expiring within 30 days
+    licencias_proximas = Chofer.objects.filter(
+        estado='ACTIVO',
+        vencimiento_licencia__gte=hoy,
+        vencimiento_licencia__lte=limite_30,
+    )
 
-    # Km promedio de la flotilla
-    km_promedio = vehiculos_activos.aggregate(
-        avg=Avg('kilometraje_actual'))['avg'] or Decimal('0.00')
+    asignaciones_activas   = Asignacion.objects.select_related('vehiculo', 'chofer').filter(estado='ACTIVA')
+    mantenimientos_recientes = Mantenimiento.objects.exclude(vehiculo__estado='BAJA').select_related('vehiculo').order_by('-fecha_servicio')[:5]
+    vehiculo_mas_km        = vehiculos_activos.order_by('-kilometraje_actual').first()
 
     context: dict[str, Any] = {
-        # Fleet KPIs
         'total_vehiculos': total_v,
         'disponibles': disponibles,
         'en_ruta': en_ruta,
         'en_taller': en_taller,
         'tasa_disponibilidad': tasa_disponibilidad,
-
-        # People
         'total_choferes': Chofer.objects.filter(estado='ACTIVO').count(),
-
-        # Financial
         'gasto_total': gasto_total,
         'costo_promedio': round(costo_promedio, 2),
-
-        # Operations
         'total_viajes': total_viajes,
         'viajes_este_mes': viajes_este_mes,
         'asignaciones_activas': asignaciones_activas,
-
-        # Maintenance breakdown (for chart)
         'mant_preventivo': mant_preventivo,
         'mant_correctivo': mant_correctivo,
         'mant_estetico': mant_estetico,
         'mant_activos': mant_activos,
         'mantenimientos_recientes': mantenimientos_recientes,
-
-        # Mileage
         'vehiculo_mas_km': vehiculo_mas_km,
         'km_promedio': round(km_promedio, 0),
-
-        # Alerts
         'polizas_criticas': polizas_criticas,
         'polizas_proximas': polizas_proximas,
         'licencias_proximas': licencias_proximas,
         'total_alertas_criticas': polizas_criticas.count() + mant_activos.count(),
-
         'hoy': hoy,
     }
 
@@ -142,9 +108,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
 
 @login_required(login_url='/login/')
 def flotilla(request: HttpRequest) -> HttpResponse:
-    """Fleet management view — full vehicle grid with actions."""
     vehiculos_activos = Vehiculo.objects.exclude(estado='BAJA')
-
     context: dict[str, Any] = {
         'vehiculos': vehiculos_activos,
         'total_vehiculos': vehiculos_activos.count(),
@@ -152,24 +116,15 @@ def flotilla(request: HttpRequest) -> HttpResponse:
         'en_taller': vehiculos_activos.filter(estado='EN_TALLER').count(),
         'en_ruta': vehiculos_activos.filter(estado='EN_RUTA').count(),
     }
-
     return render(request, 'control_vehicular/flotilla.html', context)
 
 
 @login_required(login_url='/login/')
 def exportar_pdf(request: HttpRequest) -> HttpResponse:
-    """Generates a comprehensive Enterprise PDF report."""
-    hoy = timezone.now().date()
+    hoy           = timezone.now().date()
     limite_alerta = hoy + timedelta(days=30)
-
-    vehiculos = Vehiculo.objects.exclude(estado='BAJA')
-    asignaciones_activas = Asignacion.objects.select_related('vehiculo', 'chofer').filter(estado='ACTIVA')
-    mant_pendientes = Mantenimiento.objects.select_related('vehiculo').filter(
-        estado__in=['PENDIENTE', 'EN_PROCESO']).exclude(vehiculo__estado='BAJA')
-    polizas_riesgo = PolizaSeguro.objects.select_related('vehiculo').filter(
-        fecha_vencimiento__lte=limite_alerta).exclude(vehiculo__estado='BAJA')
-    gasto_total = Mantenimiento.objects.filter(estado='FINALIZADO').aggregate(
-        total=Sum('costo'))['total'] or Decimal('0.00')
+    vehiculos     = Vehiculo.objects.exclude(estado='BAJA')
+    gasto_total   = Mantenimiento.objects.filter(estado='FINALIZADO').aggregate(total=Sum('costo'))['total'] or Decimal('0.00')
 
     context: dict[str, Any] = {
         'fecha_generacion': timezone.now(),
@@ -182,31 +137,27 @@ def exportar_pdf(request: HttpRequest) -> HttpResponse:
             'gasto_mantenimiento': gasto_total,
         },
         'vehiculos': vehiculos,
-        'asignaciones': asignaciones_activas,
-        'alertas_mantenimiento': mant_pendientes,
-        'alertas_polizas': polizas_riesgo,
+        'asignaciones': Asignacion.objects.select_related('vehiculo', 'chofer').filter(estado='ACTIVA'),
+        'alertas_mantenimiento': Mantenimiento.objects.select_related('vehiculo').filter(estado__in=['PENDIENTE', 'EN_PROCESO']).exclude(vehiculo__estado='BAJA'),
+        'alertas_polizas': PolizaSeguro.objects.select_related('vehiculo').filter(fecha_vencimiento__lte=limite_alerta).exclude(vehiculo__estado='BAJA'),
     }
 
-    template = get_template('control_vehicular/reporte_pdf.html')
-    html = template.render(context)
-
-    fecha_archivo = timezone.localtime(timezone.now()).strftime("%Y%m%d_%H%M")
-    nombre_archivo = f"FleetPro_Reporte_Ejecutivo_{fecha_archivo}.pdf"
-
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+    template    = get_template('control_vehicular/reporte_pdf.html')
+    html        = template.render(context)
+    fecha_arch  = timezone.localtime(timezone.now()).strftime("%Y%m%d_%H%M")
+    response    = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="FleetPro_Reporte_{fecha_arch}.pdf"'
 
     pisa_status = pisa.CreatePDF(html, dest=response) # type: ignore
-
     if pisa_status.err: # type: ignore
         logger.error("PDF generation failed.")
-        return HttpResponse(f'Error al generar el PDF <pre>{html}</pre>', status=500)
+        return HttpResponse(f'Error generating PDF <pre>{html}</pre>', status=500)
 
     return response
 
 
 # ==========================================
-# VEHICLE MANAGEMENT VIEWS
+# VEHICLE MANAGEMENT
 # ==========================================
 
 @login_required(login_url='/login/')
@@ -218,15 +169,12 @@ def agregar_vehiculo(request: HttpRequest) -> HttpResponse:
             return redirect('flotilla')
     else:
         form = VehiculoForm()
-
-    context: dict[str, Any] = {'form': form}
-    return render(request, 'control_vehicular/crear_vehiculo.html', context)
+    return render(request, 'control_vehicular/crear_vehiculo.html', {'form': form})
 
 
 @login_required(login_url='/login/')
 def editar_vehiculo(request: HttpRequest, id: int) -> HttpResponse:
     vehiculo = get_object_or_404(Vehiculo, id=id)
-
     if request.method == 'POST':
         form = VehiculoForm(request.POST, request.FILES, instance=vehiculo)
         if form.is_valid():
@@ -234,12 +182,11 @@ def editar_vehiculo(request: HttpRequest, id: int) -> HttpResponse:
             return redirect('flotilla')
     else:
         form = VehiculoForm(instance=vehiculo)
-
     context: dict[str, Any] = {
         'form': form,
         'titulo': f'Editar Vehículo: {vehiculo.get_marca_display()} {vehiculo.modelo}',
         'url_regreso': reverse('flotilla'),
-        'texto_regreso': 'Volver a Flotilla'
+        'texto_regreso': 'Volver a Flotilla',
     }
     return render(request, 'control_vehicular/crear_vehiculo.html', context)
 
@@ -255,15 +202,13 @@ def eliminar_vehiculo(request: HttpRequest, id: int) -> HttpResponseRedirect:
 
 @login_required(login_url='/login/')
 def vehiculos_baja(request: HttpRequest) -> HttpResponse:
-    vehiculos_eliminados = Vehiculo.objects.filter(estado='BAJA')
-    context: dict[str, Any] = {'vehiculos': vehiculos_eliminados}
+    context: dict[str, Any] = {'vehiculos': Vehiculo.objects.filter(estado='BAJA')}
     return render(request, 'control_vehicular/vehiculos_baja.html', context)
 
 
 @login_required(login_url='/login/')
 def reactivar_vehiculo(request: HttpRequest, id: int) -> HttpResponseRedirect:
     vehiculo = get_object_or_404(Vehiculo, id=id)
-
     if request.method == 'POST':
         if Mantenimiento.objects.filter(vehiculo=vehiculo, estado='EN_PROCESO').exists():
             vehiculo.estado = 'EN_TALLER'
@@ -272,12 +217,11 @@ def reactivar_vehiculo(request: HttpRequest, id: int) -> HttpResponseRedirect:
         else:
             vehiculo.estado = 'DISPONIBLE'
         vehiculo.save()
-
     return redirect('vehiculos_baja')
 
 
 # ==========================================
-# MAINTENANCE & INSURANCE VIEWS
+# MAINTENANCE
 # ==========================================
 
 @login_required(login_url='/login/')
@@ -289,12 +233,11 @@ def registrar_mantenimiento(request: HttpRequest) -> HttpResponse:
             return redirect('historial_mantenimientos')
     else:
         form = MantenimientoForm()
-
     context: dict[str, Any] = {
         'form': form,
         'titulo': 'Registrar Mantenimiento',
         'url_regreso': reverse('historial_mantenimientos'),
-        'texto_regreso': 'Volver a Mantenimientos'
+        'texto_regreso': 'Volver a Mantenimientos',
     }
     return render(request, 'control_vehicular/crear_vehiculo.html', context)
 
@@ -309,12 +252,11 @@ def editar_mantenimiento(request: HttpRequest, id: int) -> HttpResponse:
             return redirect('historial_mantenimientos')
     else:
         form = MantenimientoForm(instance=mant)
-
     context: dict[str, Any] = {
         'form': form,
         'titulo': 'Gestionar Mantenimiento',
         'url_regreso': reverse('historial_mantenimientos'),
-        'texto_regreso': 'Volver a Mantenimientos'
+        'texto_regreso': 'Volver a Mantenimientos',
     }
     return render(request, 'control_vehicular/crear_vehiculo.html', context)
 
@@ -333,39 +275,69 @@ def finalizar_mantenimiento(request: HttpRequest, id: int) -> HttpResponseRedire
 
 @login_required(login_url='/login/')
 def historial_mantenimientos(request: HttpRequest) -> HttpResponse:
-    mantenimientos = Mantenimiento.objects.exclude(
-        vehiculo__estado='BAJA').order_by('-fecha_servicio')
+    mantenimientos = Mantenimiento.objects.exclude(vehiculo__estado='BAJA').order_by('-fecha_servicio')
     context: dict[str, Any] = {'mantenimientos': mantenimientos}
     return render(request, 'control_vehicular/historial_mantenimientos.html', context)
+
+
+# ==========================================
+# INSURANCE POLICIES
+# ==========================================
+
+@login_required(login_url='/login/')
+def lista_polizas(request: HttpRequest) -> HttpResponse:
+    polizas = PolizaSeguro.objects.select_related('vehiculo').exclude(
+        vehiculo__estado='BAJA'
+    ).order_by('fecha_vencimiento')
+    hoy = timezone.now().date()
+    context: dict[str, Any] = {'polizas': polizas, 'hoy': hoy}
+    return render(request, 'control_vehicular/polizas.html', context)
 
 
 @login_required(login_url='/login/')
 def registrar_poliza(request: HttpRequest) -> HttpResponse:
     if request.method == 'POST':
-        form = PolizaSeguroForm(request.POST, request.FILES)
+        form = PolizaSeguroForm(request.POST)
         if form.is_valid():
             form.save()
-            return redirect('dashboard')
+            return redirect('lista_polizas')
     else:
         form = PolizaSeguroForm()
-
     context: dict[str, Any] = {
         'form': form,
         'titulo': 'Registrar Póliza de Seguro',
-        'url_regreso': reverse('dashboard'),
-        'texto_regreso': 'Volver al Dashboard'
+        'url_regreso': reverse('lista_polizas'),
+        'texto_regreso': 'Volver a Pólizas',
+    }
+    return render(request, 'control_vehicular/crear_vehiculo.html', context)
+
+
+@login_required(login_url='/login/')
+def editar_poliza(request: HttpRequest, id: int) -> HttpResponse:
+    poliza = get_object_or_404(PolizaSeguro, id=id)
+    if request.method == 'POST':
+        form = PolizaSeguroForm(request.POST, instance=poliza)
+        if form.is_valid():
+            form.save()
+            return redirect('lista_polizas')
+    else:
+        form = PolizaSeguroForm(instance=poliza)
+    context: dict[str, Any] = {
+        'form': form,
+        'titulo': f'Editar Póliza: {poliza.vehiculo.placas}',
+        'url_regreso': reverse('lista_polizas'),
+        'texto_regreso': 'Volver a Pólizas',
     }
     return render(request, 'control_vehicular/crear_vehiculo.html', context)
 
 
 # ==========================================
-# DRIVER MANAGEMENT VIEWS
+# DRIVER MANAGEMENT
 # ==========================================
 
 @login_required(login_url='/login/')
 def lista_choferes(request: HttpRequest) -> HttpResponse:
-    choferes = Chofer.objects.filter(estado='ACTIVO')
-    context: dict[str, Any] = {'choferes': choferes}
+    context: dict[str, Any] = {'choferes': Chofer.objects.filter(estado='ACTIVO')}
     return render(request, 'control_vehicular/choferes.html', context)
 
 
@@ -378,12 +350,11 @@ def registrar_chofer(request: HttpRequest) -> HttpResponse:
             return redirect('lista_choferes')
     else:
         form = ChoferForm()
-
     context: dict[str, Any] = {
         'form': form,
         'titulo': 'Registrar Nuevo Operador',
         'url_regreso': reverse('lista_choferes'),
-        'texto_regreso': 'Volver a Operadores'
+        'texto_regreso': 'Volver a Operadores',
     }
     return render(request, 'control_vehicular/crear_vehiculo.html', context)
 
@@ -398,12 +369,11 @@ def editar_chofer(request: HttpRequest, id: int) -> HttpResponse:
             return redirect('lista_choferes')
     else:
         form = ChoferForm(instance=chofer)
-
     context: dict[str, Any] = {
         'form': form,
-        'titulo': '⚙️ Editar Datos del Chofer',
+        'titulo': f'Editar Operador: {chofer.nombre} {chofer.apellidos}',
         'url_regreso': reverse('lista_choferes'),
-        'texto_regreso': 'Volver a Operadores'
+        'texto_regreso': 'Volver a Operadores',
     }
     return render(request, 'control_vehicular/crear_vehiculo.html', context)
 
@@ -419,8 +389,7 @@ def baja_chofer(request: HttpRequest, id: int) -> HttpResponseRedirect:
 
 @login_required(login_url='/login/')
 def choferes_baja(request: HttpRequest) -> HttpResponse:
-    choferes_inactivos = Chofer.objects.filter(estado='BAJA')
-    context: dict[str, Any] = {'choferes': choferes_inactivos}
+    context: dict[str, Any] = {'choferes': Chofer.objects.filter(estado='BAJA')}
     return render(request, 'control_vehicular/choferes_baja.html', context)
 
 
@@ -434,14 +403,13 @@ def reactivar_chofer(request: HttpRequest, id: int) -> HttpResponseRedirect:
 
 
 # ==========================================
-# OPERATIONAL ASSIGNMENTS VIEWS
+# ASSIGNMENTS
 # ==========================================
 
 @login_required(login_url='/login/')
 def asignar_vehiculo(request: HttpRequest) -> HttpResponse:
-    vehiculo_id = request.GET.get('vehiculo')
     datos_iniciales: dict[str, Any] = {}
-
+    vehiculo_id = request.GET.get('vehiculo')
     if vehiculo_id:
         datos_iniciales['vehiculo'] = vehiculo_id
 
@@ -452,12 +420,11 @@ def asignar_vehiculo(request: HttpRequest) -> HttpResponse:
             return redirect('flotilla')
     else:
         form = AsignacionForm(initial=datos_iniciales)
-
     context: dict[str, Any] = {
         'form': form,
         'titulo': 'Asignar Vehículo a Operador',
         'url_regreso': reverse('flotilla'),
-        'texto_regreso': 'Volver a Flotilla'
+        'texto_regreso': 'Volver a Flotilla',
     }
     return render(request, 'control_vehicular/crear_vehiculo.html', context)
 
@@ -466,14 +433,12 @@ def asignar_vehiculo(request: HttpRequest) -> HttpResponse:
 def liberar_vehiculo(request: HttpRequest, id: int) -> HttpResponseRedirect:
     if request.method == 'POST':
         vehiculo = get_object_or_404(Vehiculo, id=id)
-
         nuevo_km_raw = request.POST.get('kilometraje_regreso')
         if nuevo_km_raw:
             try:
                 vehiculo.kilometraje_actual = Decimal(nuevo_km_raw)
             except InvalidOperation:
-                logger.warning(f"Invalid mileage input received: {nuevo_km_raw}")
-
+                logger.warning(f"Invalid mileage input: {nuevo_km_raw}")
         vehiculo.estado = 'DISPONIBLE'
         vehiculo.save()
 

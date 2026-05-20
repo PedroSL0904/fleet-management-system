@@ -1,0 +1,127 @@
+{% extends 'control_vehicular/base.html' %}
+{% block title %}Pólizas de Seguro | FleetPro{% endblock %}
+{% block topbar_title %}Pólizas de Seguro{% endblock %}
+{% block nav_polizas %}active{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .page-toolbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; gap:12px; }
+    .search-box { display:flex; align-items:center; gap:8px; background:white; border:1px solid var(--border); border-radius:8px; padding:8px 14px; width:260px; transition:border-color 0.15s, box-shadow 0.15s; }
+    .search-box:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
+    .search-box svg { width:15px; height:15px; fill:var(--text-secondary); flex-shrink:0; }
+    .search-box input { border:none; outline:none; font-size:13px; font-family:'DM Sans',sans-serif; color:var(--text-primary); background:transparent; width:100%; }
+    .search-box input::placeholder { color:var(--text-secondary); }
+
+    .table-card { background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+    .data-table { width:100%; border-collapse:collapse; }
+    .data-table thead tr { background:#f9fafb; border-bottom:1px solid var(--border); }
+    .data-table thead th { padding:11px 16px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--text-secondary); text-align:left; white-space:nowrap; }
+    .data-table tbody tr { border-bottom:1px solid var(--border); transition:background 0.12s; }
+    .data-table tbody tr:last-child { border-bottom:none; }
+    .data-table tbody tr:hover { background:#f9fafb; }
+    .data-table tbody td { padding:13px 16px; font-size:13.5px; color:var(--text-primary); vertical-align:middle; }
+
+    .vehicle-name   { font-weight:600; }
+    .vehicle-plates { font-family:'Space Mono',monospace; font-size:11px; color:var(--text-secondary); }
+    .policy-number  { font-family:'Space Mono',monospace; font-size:12.5px; }
+    .date-cell      { font-family:'Space Mono',monospace; font-size:12.5px; }
+
+    .semaforo { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:20px; font-size:11.5px; font-weight:600; }
+    .semaforo.vigente    { background:#dcfce7; color:#15803d; }
+    .semaforo.por-vencer { background:#fef9c3; color:#854d0e; }
+    .semaforo.vencida    { background:#fee2e2; color:#b91c1c; }
+
+    .action-btn { display:inline-flex; align-items:center; gap:5px; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:500; border:1px solid var(--border); background:white; color:var(--text-primary); text-decoration:none; transition:all 0.15s; font-family:'DM Sans',sans-serif; }
+    .action-btn:hover { background:var(--bg-main); color:var(--text-primary); }
+    .action-btn svg { width:13px; height:13px; }
+
+    .empty-row td { text-align:center; padding:60px 20px; color:var(--text-secondary); font-size:14px; }
+
+    .summary-bar { display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+    .summary-pill { display:flex; align-items:center; gap:6px; padding:6px 14px; background:white; border:1px solid var(--border); border-radius:20px; font-size:12.5px; color:var(--text-secondary); }
+    .summary-pill .pill-dot { width:7px; height:7px; border-radius:50%; }
+    .summary-pill strong { font-family:'Space Mono',monospace; color:var(--text-primary); font-size:12px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-toolbar">
+    <div>
+        <div style="font-size:22px;font-weight:600;color:var(--text-primary);letter-spacing:-0.3px;">Pólizas de Seguro</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-top:1px;">{{ polizas|length }} póliza{{ polizas|length|pluralize }} registrada{{ polizas|length|pluralize }}</div>
+    </div>
+    <div class="search-box">
+        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input type="text" id="searchPolizas" placeholder="Buscar placas o aseguradora...">
+    </div>
+</div>
+
+<!-- Summary pills -->
+<div class="summary-bar">
+    <div class="summary-pill"><span class="pill-dot" style="background:#22c55e;"></span>Vigentes</div>
+    <div class="summary-pill"><span class="pill-dot" style="background:#f59e0b;"></span>Por vencer (30 días)</div>
+    <div class="summary-pill"><span class="pill-dot" style="background:#ef4444;"></span>Vencidas</div>
+</div>
+
+<div class="table-card">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Vehículo</th>
+                <th>Aseguradora</th>
+                <th>No. Póliza</th>
+                <th>Vencimiento</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for poliza in polizas %}
+            <tr class="fila-poliza">
+                <td>
+                    <div class="vehicle-name">{{ poliza.vehiculo.get_marca_display }} {{ poliza.vehiculo.modelo }}</div>
+                    <div class="vehicle-plates">{{ poliza.vehiculo.placas }}</div>
+                </td>
+                <td>{{ poliza.get_aseguradora_display }}</td>
+                <td class="policy-number">{{ poliza.numero_poliza }}</td>
+                <td class="date-cell">{{ poliza.fecha_vencimiento|date:"d M Y" }}</td>
+                <td>
+                    {% with estado=poliza.estado_semaforo %}
+                    {% if estado == 'VIGENTE' %}
+                    <span class="semaforo vigente"><span class="dot" style="background:#15803d;"></span>Vigente</span>
+                    {% elif estado == 'POR_VENCER' %}
+                    <span class="semaforo por-vencer"><span class="dot" style="background:#854d0e;"></span>Por vencer</span>
+                    {% else %}
+                    <span class="semaforo vencida"><span class="dot" style="background:#b91c1c;"></span>Vencida</span>
+                    {% endif %}
+                    {% endwith %}
+                </td>
+                <td>
+                    <a href="{% url 'editar_poliza' poliza.id %}" class="action-btn">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        Gestionar
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr class="empty-row">
+                <td colspan="6">No hay pólizas de seguro registradas.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.getElementById('searchPolizas').addEventListener('input', function () {
+        const q = this.value.toLowerCase();
+        document.querySelectorAll('.fila-poliza').forEach(row => {
+            row.style.display = row.innerText.toLowerCase().includes(q) ? '' : 'none';
+        });
+    });
+</script>
+{% endblock %}
