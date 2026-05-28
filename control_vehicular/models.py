@@ -195,14 +195,6 @@ class Asignacion(models.Model):
         verbose_name_plural = "Bitácora de Asignaciones"
         ordering = ['-fecha_salida']
 
-    def save(self, *args: Any, **kwargs: Any) -> None:
-        if self.estado == 'ACTIVA':
-            self.vehiculo.estado = 'EN_RUTA'
-        elif self.estado == 'FINALIZADA':
-            self.vehiculo.estado = 'DISPONIBLE'
-        self.vehiculo.save()
-        super().save(*args, **kwargs)
-
     def __str__(self) -> str:
         return f"Viaje: {self.vehiculo.placas} - {self.chofer.nombre}"
 
@@ -237,16 +229,6 @@ class Mantenimiento(models.Model):
         verbose_name = "Registro de Mantenimiento"
         verbose_name_plural = "Historial de Mantenimientos"
         ordering = ['-fecha_servicio']
-
-    def save(self, *args: Any, **kwargs: Any) -> None:
-        if self.estado == 'EN_PROCESO':
-            self.vehiculo.estado = 'EN_TALLER'
-            self.vehiculo.save()
-        elif self.estado == 'FINALIZADO':
-            if self.vehiculo.estado == 'EN_TALLER':
-                self.vehiculo.estado = 'DISPONIBLE'
-                self.vehiculo.save()
-        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         tipo_display = getattr(self, 'get_tipo_display', lambda: self.tipo)()

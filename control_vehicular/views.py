@@ -3,79 +3,110 @@ from decimal import Decimal, InvalidOperation
 from datetime import timedelta
 from typing import Any
 
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.template.loader import get_template
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.db.models import Sum, Avg
+from django.views.generic import CreateView, UpdateView
 
 from xhtml2pdf import pisa # type: ignore
 
 from .models import Vehiculo, Asignacion, Mantenimiento, PolizaSeguro, Chofer
 from .forms import VehiculoForm, MantenimientoForm, PolizaSeguroForm, ChoferForm, AsignacionForm
+from . import services
+from .decorators import (
+    admin_required, staff_required,
+    AdminRequiredMixin, StaffRequiredMixin,
+)
 
 logger = logging.getLogger(__name__)
 
+FORM_TEMPLATE = 'control_vehicular/crear_vehiculo.html'
+
+
+class FleetFormMixin:
+    template_name = FORM_TEMPLATE
+    titulo: str = ''
+    url_regreso_name: str = ''
+    texto_regreso: str = 'Volver'
+    pk_url_kwarg = 'id'
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        context['titulo'] = self.titulo
+        context['url_regreso'] = reverse(self.url_regreso_name)
+        context['texto_regreso'] = self.texto_regreso
+        return context
+
 
 # ==========================================
-# DASHBOARD & REPORTING
+# DASHBOARD & REPORTING VIEWS (FBVs)
 # ==========================================
 
 @login_required(login_url='/login/')
 def dashboard(request: HttpRequest) -> HttpResponse:
     hoy = timezone.now().date()
     limite_30 = hoy + timedelta(days=30)
-    limite_7  = hoy + timedelta(days=7)
+    limite_7 = hoy + timedelta(days=7)
 
     vehiculos_activos = Vehiculo.objects.exclude(estado='BAJA')
-    total_v     = vehiculos_activos.count()
+    total_v = vehiculos_activos.count()
     disponibles = vehiculos_activos.filter(estado='DISPONIBLE').count()
-    en_ruta     = vehiculos_activos.filter(estado='EN_RUTA').count()
-    en_taller   = vehiculos_activos.filter(estado='EN_TALLER').count()
+    en_ruta = vehiculos_activos.filter(estado='EN_RUTA').count()
+    en_taller = vehiculos_activos.filter(estado='EN_TALLER').count()
 
     tasa_disponibilidad = round((disponibles / total_v * 100), 1) if total_v > 0 else 0
 
-    gasto_total    = Mantenimiento.objects.filter(estado='FINALIZADO').aggregate(total=Sum('costo'))['total'] or Decimal('0.00')
-    costo_promedio = Mantenimiento.objects.filter(estado='FINALIZADO').aggregate(avg=Avg('costo'))['avg']   or Decimal('0.00')
-    km_promedio    = vehiculos_activos.aggregate(avg=Avg('kilometraje_actual'))['avg'] or Decimal('0.00')
+    gasto_total = Mantenimiento.objects.filter(
+        estado='FINALIZADO').aggregate(total=Sum('costo'))['total'] or Decimal('0.00')
 
-    # Maintenance counts for bar chart
+    costo_promedio = Mantenimiento.objects.filter(
+        estado='FINALIZADO').aggregate(avg=Avg('costo'))['avg'] or Decimal('0.00')
+
     mant_preventivo = Mantenimiento.objects.filter(tipo='PREVENTIVO').count()
     mant_correctivo = Mantenimiento.objects.filter(tipo='CORRECTIVO').count()
-    mant_estetico   = Mantenimiento.objects.filter(tipo='ESTETICO').count()
+    mant_estetico = Mantenimiento.objects.filter(tipo='ESTETICO').count()
 
-    total_viajes    = Asignacion.objects.count()
-    viajes_este_mes = Asignacion.objects.filter(fecha_salida__month=hoy.month, fecha_salida__year=hoy.year).count()
+    total_viajes = Asignacion.objects.count()
+    viajes_este_mes = Asignacion.objects.filter(
+        fecha_salida__month=hoy.month, fecha_salida__year=hoy.year).count()
 
-    # Active maintenance (pending or in-progress)
+    polizas_criticas = PolizaSeguro.objects.select_related('vehiculo').filter(
+        fecha_vencimiento__lte=limite_7,
+        fecha_vencimiento__gte=hoy
+    ).exclude(vehiculo__estado='BAJA')
+
+    polizas_proximas = PolizaSeguro.objects.select_related('vehiculo').filter(
+        fecha_vencimiento__lte=limite_30,
+        fecha_vencimiento__gte=hoy
+    ).exclude(vehiculo__estado='BAJA')
+
+    licencias_proximas = Chofer.objects.filter(
+        estado='ACTIVO',
+        vencimiento_licencia__lte=limite_30,
+        vencimiento_licencia__gte=hoy
+    )
+
     mant_activos = Mantenimiento.objects.select_related('vehiculo').filter(
         estado__in=['PENDIENTE', 'EN_PROCESO']
     ).exclude(vehiculo__estado='BAJA')
 
-    # Insurance policies expiring within 7 days (critical) and 30 days (warning)
-    # Only show policies that haven't expired yet (fecha_vencimiento >= hoy)
-    polizas_criticas = PolizaSeguro.objects.select_related('vehiculo').filter(
-        fecha_vencimiento__gte=hoy,
-        fecha_vencimiento__lte=limite_7,
-    ).exclude(vehiculo__estado='BAJA')
+    asignaciones_activas = Asignacion.objects.select_related(
+        'vehiculo', 'chofer'
+    ).filter(estado='ACTIVA')
 
-    polizas_proximas = PolizaSeguro.objects.select_related('vehiculo').filter(
-        fecha_vencimiento__gte=hoy,
-        fecha_vencimiento__lte=limite_30,
-    ).exclude(vehiculo__estado='BAJA')
+    mantenimientos_recientes = Mantenimiento.objects.exclude(
+        vehiculo__estado='BAJA'
+    ).select_related('vehiculo').order_by('-fecha_servicio')[:5]
 
-    # Driver licenses expiring within 30 days
-    licencias_proximas = Chofer.objects.filter(
-        estado='ACTIVO',
-        vencimiento_licencia__gte=hoy,
-        vencimiento_licencia__lte=limite_30,
-    )
+    vehiculo_mas_km = vehiculos_activos.order_by('-kilometraje_actual').first()
 
-    asignaciones_activas   = Asignacion.objects.select_related('vehiculo', 'chofer').filter(estado='ACTIVA')
-    mantenimientos_recientes = Mantenimiento.objects.exclude(vehiculo__estado='BAJA').select_related('vehiculo').order_by('-fecha_servicio')[:5]
-    vehiculo_mas_km        = vehiculos_activos.order_by('-kilometraje_actual').first()
+    km_promedio = vehiculos_activos.aggregate(
+        avg=Avg('kilometraje_actual'))['avg'] or Decimal('0.00')
 
     context: dict[str, Any] = {
         'total_vehiculos': total_v,
@@ -121,7 +152,7 @@ def flotilla(request: HttpRequest) -> HttpResponse:
 
 @login_required(login_url='/login/')
 def exportar_pdf(request: HttpRequest) -> HttpResponse:
-    hoy           = timezone.now().date()
+    hoy = timezone.now().date()
     limite_alerta = hoy + timedelta(days=30)
     vehiculos     = Vehiculo.objects.exclude(estado='BAJA')
     gasto_total   = Mantenimiento.objects.filter(estado='FINALIZADO').aggregate(total=Sum('costo'))['total'] or Decimal('0.00')
@@ -157,46 +188,37 @@ def exportar_pdf(request: HttpRequest) -> HttpResponse:
 
 
 # ==========================================
-# VEHICLE MANAGEMENT
+# VEHICLE CRUD (CBVs)
 # ==========================================
 
-@login_required(login_url='/login/')
-def agregar_vehiculo(request: HttpRequest) -> HttpResponse:
-    if request.method == 'POST':
-        form = VehiculoForm(request.POST, request.FILES)
-        if form.is_valid():
-            form.save()
-            return redirect('flotilla')
-    else:
-        form = VehiculoForm()
-    return render(request, 'control_vehicular/crear_vehiculo.html', {'form': form})
+class AgregarVehiculoView(AdminRequiredMixin, FleetFormMixin, CreateView):
+    model = Vehiculo
+    form_class = VehiculoForm
+    titulo = 'Nuevo Vehículo'
+    url_regreso_name = 'flotilla'
+    texto_regreso = 'Volver a Flotilla'
+    success_url = reverse_lazy('flotilla')
 
 
-@login_required(login_url='/login/')
-def editar_vehiculo(request: HttpRequest, id: int) -> HttpResponse:
-    vehiculo = get_object_or_404(Vehiculo, id=id)
-    if request.method == 'POST':
-        form = VehiculoForm(request.POST, request.FILES, instance=vehiculo)
-        if form.is_valid():
-            form.save()
-            return redirect('flotilla')
-    else:
-        form = VehiculoForm(instance=vehiculo)
-    context: dict[str, Any] = {
-        'form': form,
-        'titulo': f'Editar Vehículo: {vehiculo.get_marca_display()} {vehiculo.modelo}',
-        'url_regreso': reverse('flotilla'),
-        'texto_regreso': 'Volver a Flotilla',
-    }
-    return render(request, 'control_vehicular/crear_vehiculo.html', context)
+class EditarVehiculoView(AdminRequiredMixin, FleetFormMixin, UpdateView):
+    model = Vehiculo
+    form_class = VehiculoForm
+    url_regreso_name = 'flotilla'
+    texto_regreso = 'Volver a Flotilla'
+    success_url = reverse_lazy('flotilla')
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        vehiculo = self.object
+        context['titulo'] = f'Editar Vehículo: {vehiculo.get_marca_display()} {vehiculo.modelo}'
+        return context
 
 
-@login_required(login_url='/login/')
+@admin_required
 def eliminar_vehiculo(request: HttpRequest, id: int) -> HttpResponseRedirect:
     vehiculo = get_object_or_404(Vehiculo, id=id)
     if request.method == 'POST':
-        vehiculo.estado = 'BAJA'
-        vehiculo.save()
+        services.dar_baja_vehiculo(vehiculo)
     return redirect('flotilla')
 
 
@@ -206,70 +228,41 @@ def vehiculos_baja(request: HttpRequest) -> HttpResponse:
     return render(request, 'control_vehicular/vehiculos_baja.html', context)
 
 
-@login_required(login_url='/login/')
+@admin_required
 def reactivar_vehiculo(request: HttpRequest, id: int) -> HttpResponseRedirect:
     vehiculo = get_object_or_404(Vehiculo, id=id)
     if request.method == 'POST':
-        if Mantenimiento.objects.filter(vehiculo=vehiculo, estado='EN_PROCESO').exists():
-            vehiculo.estado = 'EN_TALLER'
-        elif Asignacion.objects.filter(vehiculo=vehiculo, estado='ACTIVA').exists():
-            vehiculo.estado = 'EN_RUTA'
-        else:
-            vehiculo.estado = 'DISPONIBLE'
-        vehiculo.save()
+        services.reactivar_vehiculo(vehiculo)
     return redirect('vehiculos_baja')
 
 
 # ==========================================
-# MAINTENANCE
+# MAINTENANCE & INSURANCE (CBVs + FBVs)
 # ==========================================
 
-@login_required(login_url='/login/')
-def registrar_mantenimiento(request: HttpRequest) -> HttpResponse:
-    if request.method == 'POST':
-        form = MantenimientoForm(request.POST, request.FILES)
-        if form.is_valid():
-            form.save()
-            return redirect('historial_mantenimientos')
-    else:
-        form = MantenimientoForm()
-    context: dict[str, Any] = {
-        'form': form,
-        'titulo': 'Registrar Mantenimiento',
-        'url_regreso': reverse('historial_mantenimientos'),
-        'texto_regreso': 'Volver a Mantenimientos',
-    }
-    return render(request, 'control_vehicular/crear_vehiculo.html', context)
+class RegistrarMantenimientoView(StaffRequiredMixin, FleetFormMixin, CreateView):
+    model = Mantenimiento
+    form_class = MantenimientoForm
+    titulo = 'Registrar Mantenimiento'
+    url_regreso_name = 'historial_mantenimientos'
+    texto_regreso = 'Volver a Mantenimientos'
+    success_url = reverse_lazy('historial_mantenimientos')
 
 
-@login_required(login_url='/login/')
-def editar_mantenimiento(request: HttpRequest, id: int) -> HttpResponse:
-    mant = get_object_or_404(Mantenimiento, id=id)
-    if request.method == 'POST':
-        form = MantenimientoForm(request.POST, request.FILES, instance=mant)
-        if form.is_valid():
-            form.save()
-            return redirect('historial_mantenimientos')
-    else:
-        form = MantenimientoForm(instance=mant)
-    context: dict[str, Any] = {
-        'form': form,
-        'titulo': 'Gestionar Mantenimiento',
-        'url_regreso': reverse('historial_mantenimientos'),
-        'texto_regreso': 'Volver a Mantenimientos',
-    }
-    return render(request, 'control_vehicular/crear_vehiculo.html', context)
+class EditarMantenimientoView(StaffRequiredMixin, FleetFormMixin, UpdateView):
+    model = Mantenimiento
+    form_class = MantenimientoForm
+    titulo = 'Gestionar Mantenimiento'
+    url_regreso_name = 'historial_mantenimientos'
+    texto_regreso = 'Volver a Mantenimientos'
+    success_url = reverse_lazy('historial_mantenimientos')
 
 
-@login_required(login_url='/login/')
+@staff_required
 def finalizar_mantenimiento(request: HttpRequest, id: int) -> HttpResponseRedirect:
     mant = get_object_or_404(Mantenimiento, id=id)
     if request.method == 'POST':
-        mant.estado = 'FINALIZADO'
-        mant.save()
-        if mant.vehiculo.estado == 'EN_TALLER':
-            mant.vehiculo.estado = 'DISPONIBLE'
-            mant.vehiculo.save()
+        services.finalizar_mantenimiento(mant)
     return redirect('flotilla')
 
 
@@ -280,8 +273,101 @@ def historial_mantenimientos(request: HttpRequest) -> HttpResponse:
     return render(request, 'control_vehicular/historial_mantenimientos.html', context)
 
 
+class RegistrarPolizaView(AdminRequiredMixin, FleetFormMixin, CreateView):
+    model = PolizaSeguro
+    form_class = PolizaSeguroForm
+    titulo = 'Registrar Póliza de Seguro'
+    url_regreso_name = 'dashboard'
+    texto_regreso = 'Volver al Dashboard'
+    success_url = reverse_lazy('dashboard')
+
+
 # ==========================================
-# INSURANCE POLICIES
+# DRIVER MANAGEMENT (CBVs + FBVs)
+# ==========================================
+
+@login_required(login_url='/login/')
+def lista_choferes(request: HttpRequest) -> HttpResponse:
+    context: dict[str, Any] = {'choferes': Chofer.objects.filter(estado='ACTIVO')}
+    return render(request, 'control_vehicular/choferes.html', context)
+
+
+class RegistrarChoferView(AdminRequiredMixin, FleetFormMixin, CreateView):
+    model = Chofer
+    form_class = ChoferForm
+    titulo = 'Registrar Nuevo Operador'
+    url_regreso_name = 'lista_choferes'
+    texto_regreso = 'Volver a Operadores'
+    success_url = reverse_lazy('lista_choferes')
+
+
+class EditarChoferView(AdminRequiredMixin, FleetFormMixin, UpdateView):
+    model = Chofer
+    form_class = ChoferForm
+    titulo = '⚙️ Editar Datos del Chofer'
+    url_regreso_name = 'lista_choferes'
+    texto_regreso = 'Volver a Operadores'
+    success_url = reverse_lazy('lista_choferes')
+
+
+@admin_required
+def baja_chofer(request: HttpRequest, id: int) -> HttpResponseRedirect:
+    chofer = get_object_or_404(Chofer, id=id)
+    if request.method == 'POST':
+        services.dar_baja_chofer(chofer)
+    return redirect('lista_choferes')
+
+
+@login_required(login_url='/login/')
+def choferes_baja(request: HttpRequest) -> HttpResponse:
+    context: dict[str, Any] = {'choferes': Chofer.objects.filter(estado='BAJA')}
+    return render(request, 'control_vehicular/choferes_baja.html', context)
+
+
+@admin_required
+def reactivar_chofer(request: HttpRequest, id: int) -> HttpResponseRedirect:
+    chofer = get_object_or_404(Chofer, id=id)
+    if request.method == 'POST':
+        services.reactivar_chofer(chofer)
+    return redirect('choferes_baja')
+
+
+# ==========================================
+# OPERATIONAL ASSIGNMENTS (CBV + FBV)
+# ==========================================
+
+class AsignarVehiculoView(AdminRequiredMixin, FleetFormMixin, CreateView):
+    model = Asignacion
+    form_class = AsignacionForm
+    titulo = 'Asignar Vehículo a Operador'
+    url_regreso_name = 'flotilla'
+    texto_regreso = 'Volver a Flotilla'
+    success_url = reverse_lazy('flotilla')
+
+    def get_initial(self) -> dict[str, Any]:
+        initial = super().get_initial()
+        vehiculo_id = self.request.GET.get('vehiculo')
+        if vehiculo_id:
+            initial['vehiculo'] = vehiculo_id
+        return initial
+
+    def form_valid(self, form: AsignacionForm) -> HttpResponseRedirect:
+        asignacion = form.save(commit=False)
+        services.activar_asignacion(asignacion)
+        return HttpResponseRedirect(self.get_success_url())
+
+
+@admin_required
+def liberar_vehiculo(request: HttpRequest, id: int) -> HttpResponseRedirect:
+    if request.method == 'POST':
+        vehiculo = get_object_or_404(Vehiculo, id=id)
+        nuevo_km_raw = request.POST.get('kilometraje_regreso')
+        services.liberar_vehiculo(vehiculo, nuevo_km_raw)
+    return redirect('flotilla')
+
+
+# ==========================================
+# INSURANCE POLICIES (FBVs)
 # ==========================================
 
 @login_required(login_url='/login/')
@@ -292,24 +378,6 @@ def lista_polizas(request: HttpRequest) -> HttpResponse:
     hoy = timezone.now().date()
     context: dict[str, Any] = {'polizas': polizas, 'hoy': hoy}
     return render(request, 'control_vehicular/polizas.html', context)
-
-
-@login_required(login_url='/login/')
-def registrar_poliza(request: HttpRequest) -> HttpResponse:
-    if request.method == 'POST':
-        form = PolizaSeguroForm(request.POST)
-        if form.is_valid():
-            form.save()
-            return redirect('lista_polizas')
-    else:
-        form = PolizaSeguroForm()
-    context: dict[str, Any] = {
-        'form': form,
-        'titulo': 'Registrar Póliza de Seguro',
-        'url_regreso': reverse('lista_polizas'),
-        'texto_regreso': 'Volver a Pólizas',
-    }
-    return render(request, 'control_vehicular/crear_vehiculo.html', context)
 
 
 @login_required(login_url='/login/')
@@ -329,122 +397,3 @@ def editar_poliza(request: HttpRequest, id: int) -> HttpResponse:
         'texto_regreso': 'Volver a Pólizas',
     }
     return render(request, 'control_vehicular/crear_vehiculo.html', context)
-
-
-# ==========================================
-# DRIVER MANAGEMENT
-# ==========================================
-
-@login_required(login_url='/login/')
-def lista_choferes(request: HttpRequest) -> HttpResponse:
-    context: dict[str, Any] = {'choferes': Chofer.objects.filter(estado='ACTIVO')}
-    return render(request, 'control_vehicular/choferes.html', context)
-
-
-@login_required(login_url='/login/')
-def registrar_chofer(request: HttpRequest) -> HttpResponse:
-    if request.method == 'POST':
-        form = ChoferForm(request.POST, request.FILES)
-        if form.is_valid():
-            form.save()
-            return redirect('lista_choferes')
-    else:
-        form = ChoferForm()
-    context: dict[str, Any] = {
-        'form': form,
-        'titulo': 'Registrar Nuevo Operador',
-        'url_regreso': reverse('lista_choferes'),
-        'texto_regreso': 'Volver a Operadores',
-    }
-    return render(request, 'control_vehicular/crear_vehiculo.html', context)
-
-
-@login_required(login_url='/login/')
-def editar_chofer(request: HttpRequest, id: int) -> HttpResponse:
-    chofer = get_object_or_404(Chofer, id=id)
-    if request.method == 'POST':
-        form = ChoferForm(request.POST, request.FILES, instance=chofer)
-        if form.is_valid():
-            form.save()
-            return redirect('lista_choferes')
-    else:
-        form = ChoferForm(instance=chofer)
-    context: dict[str, Any] = {
-        'form': form,
-        'titulo': f'Editar Operador: {chofer.nombre} {chofer.apellidos}',
-        'url_regreso': reverse('lista_choferes'),
-        'texto_regreso': 'Volver a Operadores',
-    }
-    return render(request, 'control_vehicular/crear_vehiculo.html', context)
-
-
-@login_required(login_url='/login/')
-def baja_chofer(request: HttpRequest, id: int) -> HttpResponseRedirect:
-    chofer = get_object_or_404(Chofer, id=id)
-    if request.method == 'POST':
-        chofer.estado = 'BAJA'
-        chofer.save()
-    return redirect('lista_choferes')
-
-
-@login_required(login_url='/login/')
-def choferes_baja(request: HttpRequest) -> HttpResponse:
-    context: dict[str, Any] = {'choferes': Chofer.objects.filter(estado='BAJA')}
-    return render(request, 'control_vehicular/choferes_baja.html', context)
-
-
-@login_required(login_url='/login/')
-def reactivar_chofer(request: HttpRequest, id: int) -> HttpResponseRedirect:
-    chofer = get_object_or_404(Chofer, id=id)
-    if request.method == 'POST':
-        chofer.estado = 'ACTIVO'
-        chofer.save()
-    return redirect('choferes_baja')
-
-
-# ==========================================
-# ASSIGNMENTS
-# ==========================================
-
-@login_required(login_url='/login/')
-def asignar_vehiculo(request: HttpRequest) -> HttpResponse:
-    datos_iniciales: dict[str, Any] = {}
-    vehiculo_id = request.GET.get('vehiculo')
-    if vehiculo_id:
-        datos_iniciales['vehiculo'] = vehiculo_id
-
-    if request.method == 'POST':
-        form = AsignacionForm(request.POST)
-        if form.is_valid():
-            form.save()
-            return redirect('flotilla')
-    else:
-        form = AsignacionForm(initial=datos_iniciales)
-    context: dict[str, Any] = {
-        'form': form,
-        'titulo': 'Asignar Vehículo a Operador',
-        'url_regreso': reverse('flotilla'),
-        'texto_regreso': 'Volver a Flotilla',
-    }
-    return render(request, 'control_vehicular/crear_vehiculo.html', context)
-
-
-@login_required(login_url='/login/')
-def liberar_vehiculo(request: HttpRequest, id: int) -> HttpResponseRedirect:
-    if request.method == 'POST':
-        vehiculo = get_object_or_404(Vehiculo, id=id)
-        nuevo_km_raw = request.POST.get('kilometraje_regreso')
-        if nuevo_km_raw:
-            try:
-                vehiculo.kilometraje_actual = Decimal(nuevo_km_raw)
-            except InvalidOperation:
-                logger.warning(f"Invalid mileage input: {nuevo_km_raw}")
-        vehiculo.estado = 'DISPONIBLE'
-        vehiculo.save()
-
-        asignacion = Asignacion.objects.filter(vehiculo=vehiculo, estado='ACTIVA').first()
-        if asignacion:
-            asignacion.estado = 'FINALIZADA'
-            asignacion.save()
-
-    return redirect('flotilla')

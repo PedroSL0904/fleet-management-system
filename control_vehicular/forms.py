@@ -138,10 +138,6 @@ class VehiculoForm(forms.ModelForm):
                 
         return cleaned_data
 
-    def get_catalogo_json(self) -> str:
-        """Serializes the Python dictionary into JSON for the Frontend JavaScript."""
-        return json.dumps(CATALOGO_AUTOS)
-
 
 class ChoferForm(forms.ModelForm):
     """

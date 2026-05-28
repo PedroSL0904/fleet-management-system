@@ -1,24 +1,29 @@
+import os
 from pathlib import Path
 from typing import Any
+
+from dotenv import load_dotenv
 
 # ==========================================
 # CORE DIRECTORIES
 # ==========================================
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(BASE_DIR / '.env')
 
 
 # ==========================================
 # SECURITY & ENVIRONMENT
 # ==========================================
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-w9k4-573lm0#^u1h^owy13t9m@xt-4#620-(y_!bxrr5&d@(ft'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-me-in-production')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-# Explicitly typed for Pylance compliance
-ALLOWED_HOSTS: list[str] = []
+ALLOWED_HOSTS: list[str] = [
+    host.strip()
+    for host in os.getenv('ALLOWED_HOSTS', '').split(',')
+    if host.strip()
+]
 
 
 # ==========================================
@@ -126,6 +131,6 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'pedrolucio.0904@gmail.com'      
-EMAIL_HOST_PASSWORD = 'yxwd uhoa ekqk tlnj'       
-DEFAULT_FROM_EMAIL = 'FleetPro <pedrolucio.0904@gmail.com>'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = f'FleetPro <{EMAIL_HOST_USER}>'

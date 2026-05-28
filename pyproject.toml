@@ -1,0 +1,24 @@
+[project]
+name = "fleet-management-system"
+version = "0.1.0"
+description = "FleetPro - Sistema de Gestion de Flota Vehicular"
+requires-python = ">=3.12"
+dependencies = [
+    "django>=6.0,<7.0",
+    "python-dotenv>=1.1,<2.0",
+    "xhtml2pdf>=0.2.17,<1.0",
+    "pillow>=12.0,<13.0",
+    "requests>=2.34,<3.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0,<9.0",
+    "pytest-django>=4.11,<5.0",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "sistema_flotilla.settings"
+python_files = ["tests.py", "test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
