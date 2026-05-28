@@ -23,6 +23,16 @@ graph TD
     E -->|HTML Renderizado| A
 ```
 
+## 📸 Vistas del Sistema
+
+Aquí tienes un vistazo de la interfaz de la aplicación:
+
+![Pantalla de Login](media/LogIn.png)
+![Dashboard Principal](media/Dashboard.png)
+![Agregar Vehículo](media/AgregarVehiculo.png)
+![Agregar Operador](media/AgregarOperador.png)
+![Mantenimientos](media/AgregarMantenimiento.png)
+
 ## 🛠️ Tecnologías Principales
 - **Backend:** Python 3.12+ y Django 6.0+
 - **Gestión de Entornos:** `uv` (extremadamente rápido)
