@@ -7,10 +7,10 @@ from django.core.exceptions import ValidationError
 from .models import Vehiculo, Mantenimiento, PolizaSeguro, Asignacion, Chofer
 
 # ==========================================
-# ENTERPRISE AUTOMOTIVE CATALOG (DEFINITIVE EDITION)
+# ENTERPRISE AUTOMOTIVE CATALOG
 # ==========================================
 CATALOGO_AUTOS: dict[str, list[tuple[str, str]]] = {
-    # ================= COREANAS =================
+    # Korean brands
     "KIA": [
         ("K3", "K3"),
         ("K4", "K4"),
@@ -43,7 +43,7 @@ CATALOGO_AUTOS: dict[str, list[tuple[str, str]]] = {
         ("STARIA", "Staria"),
         ("H100", "H-100"),
     ],
-    # ================= JAPONESAS =================
+    # Japanese brands
     "NISSAN": [
         ("VERSA", "Versa"),
         ("SENTRA", "Sentra"),
@@ -150,7 +150,7 @@ CATALOGO_AUTOS: dict[str, list[tuple[str, str]]] = {
         ("QX60", "QX60"),
         ("QX80", "QX80"),
     ],
-    # ================= NORTEAMERICANAS =================
+    # American brands
     "CHEVROLET": [
         ("AVEO", "Aveo"),
         ("ONIX", "Onix"),
@@ -240,7 +240,7 @@ CATALOGO_AUTOS: dict[str, list[tuple[str, str]]] = {
         ("MODEL_X", "Model X"),
         ("CYBERTRUCK", "Cybertruck"),
     ],
-    # ================= EUROPEAS =================
+    # European brands
     "VOLKSWAGEN": [
         ("GOL", "Gol"),
         ("VENTO", "Vento"),
@@ -387,7 +387,7 @@ CATALOGO_AUTOS: dict[str, list[tuple[str, str]]] = {
         ("REVUELTO", "Revuelto"),
         ("AVENTADOR", "Aventador"),
     ],
-    # ================= CHINAS =================
+    # Chinese brands
     "MG": [
         ("MG5", "MG5"),
         ("MG3", "MG3"),
@@ -437,7 +437,7 @@ CATALOGO_AUTOS: dict[str, list[tuple[str, str]]] = {
         ("TANK_300", "Tank 300"),
     ],
     "JETOUR": [("DASHING", "Dashing"), ("X70", "X70 / Plus"), ("X90", "X90 Plus")],
-    # ================= COMODÍN =================
+    # Fallback
     "OTRA": [("OTRO", "Otro Modelo (Especificar en notas)")],
 }
 
@@ -463,6 +463,11 @@ def current_year() -> int:
 
 
 class VehiculoForm(forms.ModelForm):
+    """
+    Handles Vehiculo model with dynamic brand/model dropdown.
+    Validates that selected model belongs to selected brand.
+    """
+
     modelo = forms.ChoiceField(
         choices=[("", "Primero selecciona una marca...")] + TODOS_LOS_MODELOS,
         widget=forms.Select(attrs={"class": "form-select border-primary shadow-sm"}),
@@ -516,33 +521,22 @@ class VehiculoForm(forms.ModelForm):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-
-        # Obtenemos el año actual
+        # Generate year options from current year down to 2000
         anio_actual = datetime.date.today().year
-
-        # Generamos una lista de años desde el actual hasta el 2000 hacia atrás
         opciones_anios = [(anio, str(anio)) for anio in range(anio_actual, 1999, -1)]
-
-        # ¡EL FIX ESTÁ AQUÍ! Pasamos las 'choices' directo adentro del Select
         self.fields["anio"].widget = forms.Select(
             attrs={"class": "form-select border-primary shadow-sm"},
             choices=[("", "Selecciona el año...")] + opciones_anios,
         )
 
     def clean(self) -> dict[str, Any]:
-        """
-        Cross-field backend validation.
-        Ensures the selected Model strictly belongs to the selected Brand.
-        """
+        """Cross-field validation: ensures model belongs to selected brand."""
         cleaned_data = super().clean()
         marca = cleaned_data.get("marca")
         modelo = cleaned_data.get("modelo")
 
-        # Proceed only if both fields are present and valid so far
         if marca and modelo:
-            # Extract the valid model codes for the chosen brand
             modelos_validos = [mod[0] for mod in CATALOGO_AUTOS.get(marca, [])]
-
             if modelo not in modelos_validos:
                 raise ValidationError(
                     {
@@ -555,8 +549,8 @@ class VehiculoForm(forms.ModelForm):
 
 class ChoferForm(forms.ModelForm):
     """
-    Form for managing Driver records.
-    Enforces specific patterns for phone numbers and custom HTML5 date constraints.
+    Handles Chofer model with license expiration validation.
+    Enforces 10-digit phone pattern and HTML5 date constraints.
     """
 
     vencimiento_licencia = forms.DateField(
@@ -601,7 +595,6 @@ class ChoferForm(forms.ModelForm):
                     "placeholder": "Ej. Pérez",
                 }
             ),
-            # Strict 10-digit enforcement for phone numbers using raw string (r'')
             "telefono": forms.TextInput(
                 attrs={
                     "class": "form-control border-primary shadow-sm",
@@ -620,24 +613,22 @@ class ChoferForm(forms.ModelForm):
         }
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        """Initializes the form and ensures HTML5 date inputs are correctly populated and restricted."""
+        """Initializes form and sets HTML5 date constraints for license expiration."""
         super().__init__(*args, **kwargs)
 
-        # 1. Recuperar valor existente si estamos editando
+        # Pre-fill existing license date when editing
         if self.instance and self.instance.pk and self.instance.vencimiento_licencia:
             self.fields[
                 "vencimiento_licencia"
             ].initial = self.instance.vencimiento_licencia.strftime("%Y-%m-%d")
 
-        # 2. BLINDAJE DEL CALENDARIO HTML
+        # Set min/max date constraints (today to 10 years ahead)
         hoy = datetime.date.today()
-        # Calculamos una fecha máxima razonable (ej. 10 años a futuro)
         fecha_maxima = hoy + datetime.timedelta(days=365 * 10)
-
         self.fields["vencimiento_licencia"].widget.attrs.update(
             {
-                "min": hoy.strftime("%Y-%m-%d"),  # Bloquea fechas pasadas
-                "max": fecha_maxima.strftime("%Y-%m-%d"),  # Bloquea fechas irreales
+                "min": hoy.strftime("%Y-%m-%d"),
+                "max": fecha_maxima.strftime("%Y-%m-%d"),
             }
         )
 
@@ -649,8 +640,8 @@ class ChoferForm(forms.ModelForm):
 
 class AsignacionForm(forms.ModelForm):
     """
-    Form for assigning Vehicles to Drivers.
-    Implements business rules via QuerySet filtering to prevent operational conflicts.
+    Handles Asignacion model for vehicle-to-driver assignments.
+    Filters querysets to show only available vehicles and unassigned active drivers.
     """
 
     class Meta:
@@ -681,7 +672,8 @@ class AsignacionForm(forms.ModelForm):
 
 class MantenimientoForm(forms.ModelForm):
     """
-    Form for logging vehicle maintenance records.
+    Handles Mantenimiento model for service records.
+    Validates that return date is not before service date.
     """
 
     fecha_servicio = forms.DateField(
@@ -748,7 +740,7 @@ class MantenimientoForm(forms.ModelForm):
         }
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        """Initializes the form and correctly formats dates for editing."""
+        """Initializes form and formats existing dates for editing."""
         super().__init__(*args, **kwargs)
         if self.instance and self.instance.pk:
             if self.instance.fecha_servicio:
@@ -761,15 +753,13 @@ class MantenimientoForm(forms.ModelForm):
                 ].initial = self.instance.fecha_regreso.strftime("%Y-%m-%d")
 
     def clean(self) -> dict[str, Any]:
-        """Validación cruzada para evitar fechas de regreso ilógicas."""
+        """Cross-field validation: ensures return date is not before service date."""
         cleaned_data = super().clean()
         fecha_servicio = cleaned_data.get("fecha_servicio")
         fecha_regreso = cleaned_data.get("fecha_regreso")
 
-        # Solo validamos si el usuario llenó ambos campos
         if fecha_servicio and fecha_regreso:
             if fecha_regreso < fecha_servicio:
-                # Disparamos el error específicamente en el campo 'fecha_regreso'
                 raise ValidationError(
                     {
                         "fecha_regreso": "¡Error temporal! La fecha de regreso no puede ser anterior a la fecha de salida al taller."
@@ -780,9 +770,7 @@ class MantenimientoForm(forms.ModelForm):
 
 
 class PolizaSeguroForm(forms.ModelForm):
-    """
-    Form for registering and updating vehicle insurance policies.
-    """
+    """Handles PolizaSeguro model for insurance policy registration."""
 
     class Meta:
         model = PolizaSeguro
