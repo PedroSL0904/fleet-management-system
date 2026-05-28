@@ -1,0 +1,36 @@
+name: Django CI/CD
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+    branches: [ "master", "main" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+        
+    - name: Install dependencies
+      run: |
+        uv sync
+
+    - name: Run Tests with pytest
+      env:
+        SECRET_KEY: 'django-insecure-ci-cd-test-key'
+        DEBUG: 'True'
+        ALLOWED_HOSTS: 'localhost,127.0.0.1'
+      run: |
+        uv run pytest

@@ -4,25 +4,37 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('control_vehicular', '0004_chofer_and_more'),
+        ("control_vehicular", "0004_chofer_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='chofer',
-            name='foto',
-            field=models.ImageField(blank=True, null=True, upload_to='choferes/', verbose_name='Fotografía del Chofer'),
+            model_name="chofer",
+            name="foto",
+            field=models.ImageField(
+                blank=True,
+                null=True,
+                upload_to="choferes/",
+                verbose_name="Fotografía del Chofer",
+            ),
         ),
         migrations.AddField(
-            model_name='chofer',
-            name='tipo_licencia',
-            field=models.CharField(choices=[('A', 'Tipo A (Vehículos Particulares)'), ('B', 'Tipo B (Servicio Público / Mercantil)'), ('C', 'Tipo C (Carga de 2 o más ejes)')], default='A', max_length=2),
+            model_name="chofer",
+            name="tipo_licencia",
+            field=models.CharField(
+                choices=[
+                    ("A", "Tipo A (Vehículos Particulares)"),
+                    ("B", "Tipo B (Servicio Público / Mercantil)"),
+                    ("C", "Tipo C (Carga de 2 o más ejes)"),
+                ],
+                default="A",
+                max_length=2,
+            ),
         ),
         migrations.AlterField(
-            model_name='chofer',
-            name='telefono',
-            field=models.CharField(max_length=15, verbose_name='Teléfono de Contacto'),
+            model_name="chofer",
+            name="telefono",
+            field=models.CharField(max_length=15, verbose_name="Teléfono de Contacto"),
         ),
     ]

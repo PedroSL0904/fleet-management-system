@@ -5,53 +5,81 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('control_vehicular', '0003_mantenimiento_estado'),
+        ("control_vehicular", "0003_mantenimiento_estado"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Chofer',
+            name="Chofer",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('nombre', models.CharField(max_length=50)),
-                ('apellidos', models.CharField(max_length=50)),
-                ('numero_licencia', models.CharField(max_length=50, unique=True, verbose_name='Número de Licencia')),
-                ('vencimiento_licencia', models.DateField(verbose_name='Vencimiento de Licencia')),
-                ('telefono', models.CharField(blank=True, max_length=15, null=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("nombre", models.CharField(max_length=50)),
+                ("apellidos", models.CharField(max_length=50)),
+                (
+                    "numero_licencia",
+                    models.CharField(
+                        max_length=50, unique=True, verbose_name="Número de Licencia"
+                    ),
+                ),
+                (
+                    "vencimiento_licencia",
+                    models.DateField(verbose_name="Vencimiento de Licencia"),
+                ),
+                ("telefono", models.CharField(blank=True, max_length=15, null=True)),
             ],
         ),
         migrations.RenameField(
-            model_name='asignacion',
-            old_name='fecha_regreso',
-            new_name='fecha_devolucion',
+            model_name="asignacion",
+            old_name="fecha_regreso",
+            new_name="fecha_devolucion",
         ),
         migrations.RemoveField(
-            model_name='asignacion',
-            name='km_regreso',
+            model_name="asignacion",
+            name="km_regreso",
         ),
         migrations.RemoveField(
-            model_name='asignacion',
-            name='km_salida',
+            model_name="asignacion",
+            name="km_salida",
         ),
         migrations.RemoveField(
-            model_name='asignacion',
-            name='observaciones',
+            model_name="asignacion",
+            name="observaciones",
         ),
         migrations.AddField(
-            model_name='asignacion',
-            name='estado',
-            field=models.CharField(choices=[('ACTIVA', 'Activa (En Ruta)'), ('FINALIZADA', 'Finalizada (Devuelto)')], default='ACTIVA', max_length=15),
+            model_name="asignacion",
+            name="estado",
+            field=models.CharField(
+                choices=[
+                    ("ACTIVA", "Activa (En Ruta)"),
+                    ("FINALIZADA", "Finalizada (Devuelto)"),
+                ],
+                default="ACTIVA",
+                max_length=15,
+            ),
         ),
         migrations.AlterField(
-            model_name='asignacion',
-            name='vehiculo',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='control_vehicular.vehiculo'),
+            model_name="asignacion",
+            name="vehiculo",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                to="control_vehicular.vehiculo",
+            ),
         ),
         migrations.AlterField(
-            model_name='asignacion',
-            name='chofer',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='control_vehicular.chofer'),
+            model_name="asignacion",
+            name="chofer",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                to="control_vehicular.chofer",
+            ),
         ),
     ]

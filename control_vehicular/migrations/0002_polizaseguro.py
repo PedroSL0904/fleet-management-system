@@ -5,20 +5,33 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('control_vehicular', '0001_initial'),
+        ("control_vehicular", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='PolizaSeguro',
+            name="PolizaSeguro",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('aseguradora', models.CharField(max_length=100)),
-                ('numero_poliza', models.CharField(max_length=50)),
-                ('fecha_vencimiento', models.DateField()),
-                ('vehiculo', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, to='control_vehicular.vehiculo')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("aseguradora", models.CharField(max_length=100)),
+                ("numero_poliza", models.CharField(max_length=50)),
+                ("fecha_vencimiento", models.DateField()),
+                (
+                    "vehiculo",
+                    models.OneToOneField(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="control_vehicular.vehiculo",
+                    ),
+                ),
             ],
         ),
     ]

@@ -4,15 +4,22 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('control_vehicular', '0002_polizaseguro'),
+        ("control_vehicular", "0002_polizaseguro"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='mantenimiento',
-            name='estado',
-            field=models.CharField(choices=[('PENDIENTE', 'Pendiente'), ('EN_PROCESO', 'En Proceso'), ('FINALIZADO', 'Finalizado')], default='PENDIENTE', max_length=20),
+            model_name="mantenimiento",
+            name="estado",
+            field=models.CharField(
+                choices=[
+                    ("PENDIENTE", "Pendiente"),
+                    ("EN_PROCESO", "En Proceso"),
+                    ("FINALIZADO", "Finalizado"),
+                ],
+                default="PENDIENTE",
+                max_length=20,
+            ),
         ),
     ]
