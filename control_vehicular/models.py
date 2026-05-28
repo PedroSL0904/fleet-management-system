@@ -8,9 +8,6 @@ from django.utils import timezone
 from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 
-# ==========================================
-# TYPE HINTING HELPERS
-# ==========================================
 if TYPE_CHECKING:
     from django.db.models.manager import RelatedManager
 
@@ -21,10 +18,8 @@ else:
 
 
 # ==========================================
-# ENTERPRISE VALIDATORS (Poka-Yoke)
+# ENTERPRISE VALIDATORS
 # ==========================================
-# Strict rules to prevent human error and ensure data integrity.
-
 
 plate_validator = RegexValidator(
     regex=r"^[A-Z0-9\-]{6,10}$",
@@ -43,20 +38,18 @@ phone_validator = RegexValidator(
 
 
 def current_year() -> int:
+    """Returns the current calendar year for model field validation."""
     return datetime.date.today().year
 
 
 def validar_vencimiento_licencia(value: datetime.date) -> None:
-    """Valida que la licencia no esté vencida ni tenga una fecha irreal."""
+    """Rejects expired licenses and unrealistic expiry dates (>10 years out)."""
     hoy = datetime.date.today()
     if value < hoy:
         raise ValidationError(
             "Inconsistencia: La licencia ya está vencida o vence hoy. No es válida para registro."
         )
-
-    limite_maximo = hoy + datetime.timedelta(
-        days=365 * 10
-    )  # 10 años de vigencia máxima
+    limite_maximo = hoy + datetime.timedelta(days=365 * 10)
     if value > limite_maximo:
         raise ValidationError(
             "Inconsistencia: La fecha de vencimiento es irreal (supera los 10 años permitidos)."
@@ -66,15 +59,24 @@ def validar_vencimiento_licencia(value: datetime.date) -> None:
 # ==========================================
 # 1. USER PROFILES
 # ==========================================
+
+
 class PerfilUsuario(models.Model):
-    ROLES = (
+    """Extends Django User with fleet-specific roles and license data."""
+
+    # -- Choices --
+    ROLES: tuple[tuple[str, str], ...] = (
         ("ADMIN", "Administrador General"),
         ("MECANICO", "Soporte / Mecánico"),
         ("CHOFER", "Chofer"),
     )
+
+    # -- Relations --
     usuario = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="perfil"
     )
+
+    # -- Role & License --
     rol = models.CharField(max_length=15, choices=ROLES, default="CHOFER")
     numero_licencia = models.CharField(
         max_length=50, blank=True, null=True, verbose_name="Número de Licencia"
@@ -88,16 +90,20 @@ class PerfilUsuario(models.Model):
         verbose_name_plural = "Perfiles de Usuarios"
 
     def __str__(self) -> str:
-        rol_display = getattr(self, "get_rol_display", lambda: self.rol)()
+        rol_display: str = getattr(self, "get_rol_display", lambda: self.rol)()
         return f"{self.usuario.username} - {rol_display}"
 
 
 # ==========================================
-# 2. FLEET DIRECTORY
+# 2. FLEET VEHICLES
 # ==========================================
+
+
 class Vehiculo(models.Model):
-    # Dictionaries to eliminate typing errors (Replaces free-text CharFields)
-    MARCAS = (
+    """Represents a fleet vehicle with operational state and mileage tracking."""
+
+    # -- Choices --
+    MARCAS: tuple[tuple[str, str], ...] = (
         ("NISSAN", "Nissan"),
         ("TOYOTA", "Toyota"),
         ("HONDA", "Honda"),
@@ -141,17 +147,25 @@ class Vehiculo(models.Model):
         ("LAMBORGHINI", "Lamborghini"),
         ("OTRA", "Otra (Especificar en modelo)"),
     )
-    ESTADOS = (
+    ESTADOS: tuple[tuple[str, str], ...] = (
         ("DISPONIBLE", "Disponible"),
         ("EN_RUTA", "En Ruta"),
         ("EN_TALLER", "En Mantenimiento"),
         ("BAJA", "Dado de Baja"),
     )
 
-    # Applied strict Regex and Min/Max validators
+    # -- Identifiers --
     placas = models.CharField(
         max_length=10, unique=True, validators=[plate_validator], verbose_name="Placas"
     )
+    vin = models.CharField(
+        max_length=17,
+        unique=True,
+        validators=[vin_validator],
+        verbose_name="Número de Serie (VIN)",
+    )
+
+    # -- Specifications --
     marca = models.CharField(
         max_length=20, choices=MARCAS, default="NISSAN", verbose_name="Marca"
     )
@@ -160,12 +174,8 @@ class Vehiculo(models.Model):
         validators=[MinValueValidator(2000), MaxValueValidator(current_year() + 1)],
         verbose_name="Año",
     )
-    vin = models.CharField(
-        max_length=17,
-        unique=True,
-        validators=[vin_validator],
-        verbose_name="Número de Serie (VIN)",
-    )
+
+    # -- Operational State --
     estado = models.CharField(
         max_length=15,
         choices=ESTADOS,
@@ -176,13 +186,16 @@ class Vehiculo(models.Model):
         max_digits=10,
         decimal_places=2,
         default=Decimal("0.00"),
-        validators=[MinValueValidator(Decimal("0.00"))],  # Prevents negative mileage
+        validators=[MinValueValidator(Decimal("0.00"))],
         verbose_name="Kilometraje Actual",
     )
+
+    # -- Media --
     foto = models.ImageField(
         upload_to="vehiculos/", blank=True, null=True, verbose_name="Fotografía"
     )
 
+    # -- Reverse relation type hint --
     asignacion_set: AsignacionManager
 
     class Meta:
@@ -191,11 +204,12 @@ class Vehiculo(models.Model):
         ordering = ["marca", "modelo"]
 
     def __str__(self) -> str:
-        marca_display = getattr(self, "get_marca_display", lambda: self.marca)()
+        marca_display: str = getattr(self, "get_marca_display", lambda: self.marca)()
         return f"{marca_display} {self.modelo} ({self.placas})"
 
     def get_chofer_actual(self) -> str:
-        viaje_actual = (
+        """Returns the full name of the currently assigned driver, or 'Sin asignar'."""
+        viaje_actual: Asignacion | None = (
             self.asignacion_set.select_related("chofer").filter(estado="ACTIVA").first()
         )
         if viaje_actual and hasattr(viaje_actual, "chofer"):
@@ -204,27 +218,34 @@ class Vehiculo(models.Model):
 
 
 # ==========================================
-# 3. DRIVERS DIRECTORY
+# 3. DRIVERS
 # ==========================================
+
+
 class Chofer(models.Model):
-    TIPOS_LICENCIA = (
+    """Represents a fleet driver with license and employment status."""
+
+    # -- Choices --
+    TIPOS_LICENCIA: tuple[tuple[str, str], ...] = (
         ("A", "Tipo A (Particulares)"),
         ("B", "Tipo B (Mercantil/Transporte)"),
         ("C", "Tipo C (Carga)"),
     )
-    ESTADOS_CHOFER = (
+    ESTADOS_CHOFER: tuple[tuple[str, str], ...] = (
         ("ACTIVO", "Activo"),
         ("BAJA", "Dado de Baja"),
     )
 
+    # -- Personal Info --
     nombre = models.CharField(max_length=50, verbose_name="Nombre(s)")
     apellidos = models.CharField(max_length=50, verbose_name="Apellidos")
-    # Applied Phone Regex Validator
     telefono = models.CharField(
         max_length=10,
         validators=[phone_validator],
         verbose_name="Teléfono (10 dígitos)",
     )
+
+    # -- License --
     tipo_licencia = models.CharField(
         max_length=2,
         choices=TIPOS_LICENCIA,
@@ -238,12 +259,16 @@ class Chofer(models.Model):
         validators=[validar_vencimiento_licencia],
         verbose_name="Vencimiento de Licencia",
     )
+
+    # -- Employment Status --
     estado = models.CharField(
         max_length=10,
         choices=ESTADOS_CHOFER,
         default="ACTIVO",
         verbose_name="Estado Laboral",
     )
+
+    # -- Media --
     foto = models.ImageField(
         upload_to="choferes/", blank=True, null=True, verbose_name="Fotografía"
     )
@@ -260,24 +285,34 @@ class Chofer(models.Model):
 # ==========================================
 # 4. ASSIGNMENTS LOG
 # ==========================================
+
+
 class Asignacion(models.Model):
-    ESTADOS = (
+    """Tracks vehicle-to-driver assignments as a trip log entry."""
+
+    # -- Choices --
+    ESTADOS: tuple[tuple[str, str], ...] = (
         ("ACTIVA", "Activa (En Ruta)"),
         ("FINALIZADA", "Finalizada (Devuelto)"),
     )
 
+    # -- Relations --
     vehiculo = models.ForeignKey(
         Vehiculo, on_delete=models.CASCADE, verbose_name="Vehículo"
     )
     chofer = models.ForeignKey(
         Chofer, on_delete=models.CASCADE, verbose_name="Operador"
     )
+
+    # -- Dates --
     fecha_salida = models.DateTimeField(
         auto_now_add=True, verbose_name="Fecha de Salida"
     )
     fecha_devolucion = models.DateTimeField(
         null=True, blank=True, verbose_name="Fecha de Devolución"
     )
+
+    # -- Status --
     estado = models.CharField(
         max_length=15, choices=ESTADOS, default="ACTIVA", verbose_name="Estado"
     )
@@ -292,45 +327,60 @@ class Asignacion(models.Model):
 
 
 # ==========================================
-# 5. MAINTENANCE
+# 5. MAINTENANCE RECORDS
 # ==========================================
+
+
 class Mantenimiento(models.Model):
-    TIPOS = (
+    """Records a maintenance service event for a fleet vehicle."""
+
+    # -- Choices --
+    TIPOS: tuple[tuple[str, str], ...] = (
         ("PREVENTIVO", "Preventivo (Afinación, Aceite)"),
         ("CORRECTIVO", "Correctivo (Falla mecánica)"),
         ("ESTETICO", "Estético (Hojalatería, Lavado)"),
     )
-    ESTADOS_MANTENIMIENTO = (
+    ESTADOS_MANTENIMIENTO: tuple[tuple[str, str], ...] = (
         ("PENDIENTE", "Pendiente"),
         ("EN_PROCESO", "En Proceso"),
         ("FINALIZADO", "Finalizado"),
     )
 
+    # -- Relations --
     vehiculo = models.ForeignKey(
         Vehiculo, on_delete=models.CASCADE, verbose_name="Vehículo"
     )
+
+    # -- Service Details --
     tipo = models.CharField(
         max_length=15, choices=TIPOS, verbose_name="Tipo de Servicio"
     )
+    taller = models.CharField(max_length=100, verbose_name="Taller")
+    descripcion_trabajo = models.TextField(verbose_name="Descripción")
+
+    # -- Dates --
     fecha_servicio = models.DateField(verbose_name="Fecha Salida")
     fecha_regreso = models.DateField(
         blank=True, null=True, verbose_name="Fecha Regreso Estimada"
     )
-    # Prevents negative costs
+
+    # -- Financial --
     costo = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         validators=[MinValueValidator(Decimal("0.00"))],
         verbose_name="Costo Total",
     )
-    taller = models.CharField(max_length=100, verbose_name="Taller")
-    descripcion_trabajo = models.TextField(verbose_name="Descripción")
+
+    # -- Status --
     estado = models.CharField(
         max_length=20,
         choices=ESTADOS_MANTENIMIENTO,
         default="PENDIENTE",
         verbose_name="Estado",
     )
+
+    # -- Media --
     comprobante = models.FileField(
         upload_to="comprobantes/", blank=True, null=True, verbose_name="Factura"
     )
@@ -341,15 +391,20 @@ class Mantenimiento(models.Model):
         ordering = ["-fecha_servicio"]
 
     def __str__(self) -> str:
-        tipo_display = getattr(self, "get_tipo_display", lambda: self.tipo)()
+        tipo_display: str = getattr(self, "get_tipo_display", lambda: self.tipo)()
         return f"{tipo_display} - {self.vehiculo.placas}"
 
 
 # ==========================================
 # 6. INSURANCE POLICIES
 # ==========================================
+
+
 class PolizaSeguro(models.Model):
-    ASEGURADORAS = (
+    """Represents an insurance policy bound to a specific fleet vehicle."""
+
+    # -- Choices --
+    ASEGURADORAS: tuple[tuple[str, str], ...] = (
         ("QUALITAS", "Quálitas"),
         ("GNP", "GNP Seguros"),
         ("HDI", "HDI Seguros"),
@@ -360,14 +415,18 @@ class PolizaSeguro(models.Model):
         ("OTRA", "Otra"),
     )
 
+    # -- Relations --
     vehiculo = models.OneToOneField(
         Vehiculo, on_delete=models.CASCADE, verbose_name="Vehículo"
     )
-    # Transformed from free-text to strict choices
+
+    # -- Policy Details --
     aseguradora = models.CharField(
         max_length=50, choices=ASEGURADORAS, verbose_name="Aseguradora"
     )
     numero_poliza = models.CharField(max_length=50, verbose_name="No. Póliza")
+
+    # -- Dates --
     fecha_vencimiento = models.DateField(verbose_name="Vencimiento")
 
     class Meta:
@@ -376,7 +435,8 @@ class PolizaSeguro(models.Model):
         ordering = ["fecha_vencimiento"]
 
     def estado_semaforo(self) -> str:
-        dias_restantes = (self.fecha_vencimiento - timezone.now().date()).days
+        """Returns traffic-light status: VENCIDA, POR_VENCER, or VIGENTE."""
+        dias_restantes: int = (self.fecha_vencimiento - timezone.now().date()).days
         if dias_restantes <= 0:
             return "VENCIDA"
         elif dias_restantes <= 30:
@@ -384,7 +444,7 @@ class PolizaSeguro(models.Model):
         return "VIGENTE"
 
     def __str__(self) -> str:
-        aseg_display = getattr(
+        aseg_display: str = getattr(
             self, "get_aseguradora_display", lambda: self.aseguradora
         )()
         return f"Póliza {aseg_display} - {self.vehiculo.placas}"

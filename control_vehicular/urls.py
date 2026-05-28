@@ -2,10 +2,10 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    # Dashboard
-    path("", views.dashboard, name="dashboard"),
-    path("flotilla/", views.flotilla, name="flotilla"),
-    path("exportar-pdf/", views.exportar_pdf, name="exportar_pdf"),
+    # Dashboard & Reporting
+    path("", views.DashboardView.as_view(), name="dashboard"),
+    path("flotilla/", views.FlotillaView.as_view(), name="flotilla"),
+    path("exportar-pdf/", views.ExportarPDFView.as_view(), name="exportar_pdf"),
     # Vehicle Management
     path(
         "agregar-vehiculo/",
@@ -18,16 +18,18 @@ urlpatterns = [
         name="editar_vehiculo",
     ),
     path(
-        "eliminar-vehiculo/<int:id>/", views.eliminar_vehiculo, name="eliminar_vehiculo"
+        "eliminar-vehiculo/<int:id>/",
+        views.EliminarVehiculoView.as_view(),
+        name="eliminar_vehiculo",
     ),
-    path("vehiculos-baja/", views.vehiculos_baja, name="vehiculos_baja"),
+    path("vehiculos-baja/", views.VehiculosBajaView.as_view(), name="vehiculos_baja"),
     path(
         "reactivar-vehiculo/<int:id>/",
-        views.reactivar_vehiculo,
+        views.ReactivarVehiculoView.as_view(),
         name="reactivar_vehiculo",
     ),
     # Drivers
-    path("choferes/", views.lista_choferes, name="lista_choferes"),
+    path("choferes/", views.ListaChoferesView.as_view(), name="lista_choferes"),
     path(
         "registrar-chofer/",
         views.RegistrarChoferView.as_view(),
@@ -38,16 +40,24 @@ urlpatterns = [
         views.EditarChoferView.as_view(),
         name="editar_chofer",
     ),
-    path("baja-chofer/<int:id>/", views.baja_chofer, name="baja_chofer"),
-    path("choferes-baja/", views.choferes_baja, name="choferes_baja"),
-    path("reactivar-chofer/<int:id>/", views.reactivar_chofer, name="reactivar_chofer"),
+    path("baja-chofer/<int:id>/", views.BajaChoferView.as_view(), name="baja_chofer"),
+    path("choferes-baja/", views.ChoferesBajaView.as_view(), name="choferes_baja"),
+    path(
+        "reactivar-chofer/<int:id>/",
+        views.ReactivarChoferView.as_view(),
+        name="reactivar_chofer",
+    ),
     # Operations & Assignments
     path(
         "asignar-vehiculo/",
         views.AsignarVehiculoView.as_view(),
         name="asignar_vehiculo",
     ),
-    path("liberar-vehiculo/<int:id>/", views.liberar_vehiculo, name="liberar_vehiculo"),
+    path(
+        "liberar-vehiculo/<int:id>/",
+        views.LiberarVehiculoView.as_view(),
+        name="liberar_vehiculo",
+    ),
     # Maintenance & Insurance
     path(
         "registrar-mantenimiento/",
@@ -61,19 +71,23 @@ urlpatterns = [
     ),
     path(
         "historial-mantenimientos/",
-        views.historial_mantenimientos,
+        views.HistorialMantenimientosView.as_view(),
         name="historial_mantenimientos",
     ),
     path(
         "finalizar-mantenimiento/<int:id>/",
-        views.finalizar_mantenimiento,
+        views.FinalizarMantenimientoView.as_view(),
         name="finalizar_mantenimiento",
     ),
-    path("polizas/", views.lista_polizas, name="lista_polizas"),
+    path("polizas/", views.ListaPolizasView.as_view(), name="lista_polizas"),
     path(
         "registrar-poliza/",
         views.RegistrarPolizaView.as_view(),
         name="registrar_poliza",
     ),
-    path("editar-poliza/<int:id>/", views.editar_poliza, name="editar_poliza"),
+    path(
+        "editar-poliza/<int:id>/",
+        views.EditarPolizaView.as_view(),
+        name="editar_poliza",
+    ),
 ]
